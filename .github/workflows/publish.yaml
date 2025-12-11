@@ -1,0 +1,69 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+# Deny all permissions by default for security
+permissions: {}
+
+jobs:
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    # Grant minimal permissions required for PyPI trusted publishing
+    permissions:
+      contents: read
+      id-token: write # Required for trusted publishing
+    environment:
+      name: pypi
+      url: https://pypi.org/p/immich-migrator
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # v7.1.5
+        with:
+          version: "latest"
+          enable-cache: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build package
+        run: uv build
+
+      - name: Verify package contents
+        run: |
+          echo "Checking wheel contents..."
+          unzip -l dist/*.whl | grep -E '(py\.typed|README\.md|LICENSE)' || {
+            echo "ERROR: Missing required files in wheel"
+            exit 1
+          }
+          echo "Checking sdist contents..."
+          tar -tzf dist/*.tar.gz | grep -E '(py\.typed|README\.md|LICENSE|tests/)' || {
+            echo "ERROR: Missing required files in sdist"
+            exit 1
+          }
+          echo "✓ Package contents verified"
+
+      - name: Publish to PyPI
+        run: uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+          # Note: Add PYPI_API_TOKEN secret to your repository settings
+          # Or configure trusted publishing:
+          # https://docs.astral.sh/uv/guides/publish/#trusted-publishing
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          files: dist/*
