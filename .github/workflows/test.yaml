@@ -37,6 +37,7 @@ jobs:
         with:
           version: "latest"
           enable-cache: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         run: |
