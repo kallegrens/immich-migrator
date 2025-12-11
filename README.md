@@ -1,7 +1,9 @@
 # Immich Migration Tool
 
-[![Tests](https://github.com/kallegrens/immich-migrator/actions/workflows/test.yml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/test.yml)
-[![Build](https://github.com/kallegrens/immich-migrator/actions/workflows/build.yml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/build.yml)
+[![Tests](https://github.com/kallegrens/immich-migrator/actions/workflows/test.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/test.yaml)
+[![Build](https://github.com/kallegrens/immich-migrator/actions/workflows/build.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/build.yaml)
+[![Lint](https://github.com/kallegrens/immich-migrator/actions/workflows/lint.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/lint.yaml)
+[![Publish](https://github.com/kallegrens/immich-migrator/actions/workflows/publish.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/publish.yaml)
 [![codecov](https://codecov.io/gh/kallegrens/immich-migrator/branch/main/graph/badge.svg)](https://codecov.io/gh/kallegrens/immich-migrator)
 [![PyPI version](https://badge.fury.io/py/immich-migrator.svg)](https://badge.fury.io/py/immich-migrator)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
