@@ -2,9 +2,9 @@ name: Lint
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: ["**"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -99,31 +99,17 @@ jobs:
           reporter: github-pr-review
 
   zizmor:
-    name: Security Audit with zizmor
+    name: Security Audit with zizmor 🌈
     runs-on: ubuntu-latest
-    # Grant minimal permissions required for uploading SARIF security results
     permissions:
       security-events: write # Required to upload SARIF file to GitHub Security
-      contents: read # Required to checkout repository code
-      actions: read # Required to read workflow and action metadata
+      # contents: read # Required to checkout repository code
+      # actions: read # Required to read workflow and action metadata
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@e4db8464a088ece1b920f60402e813ea4de65b8f # v4
-        with:
-          version: "latest"
-          enable-cache: true
-
-      - name: Run zizmor
-        run: uvx zizmor --pedantic --format=sarif . > results.sarif
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@6d10af73d5896080e7b530ea0822d927c05661f1 # v3
-        with:
-          sarif_file: results.sarif
-          category: zizmor
+      - name: Run zizmor 🌈
+        uses: zizmorcore/zizmor-action@e639db99335bc9038abc0e066dfcd72e23d26fb4 # v0.3.0

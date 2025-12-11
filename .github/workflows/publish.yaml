@@ -58,8 +58,9 @@ jobs:
         run: uv publish
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-        # Note: Add PYPI_API_TOKEN secret to your repository settings
-        # Or configure trusted publishing: https://docs.astral.sh/uv/guides/publish/#trusted-publishing
+          # Note: Add PYPI_API_TOKEN secret to your repository settings
+          # Or configure trusted publishing:
+          # https://docs.astral.sh/uv/guides/publish/#trusted-publishing
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
