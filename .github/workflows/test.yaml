@@ -43,8 +43,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync
-          uv pip install -e ".[test]"
+          uv sync --all-groups
 
       - name: Install exiftool
         run: |
