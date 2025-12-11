@@ -18,7 +18,7 @@ If you discover a security vulnerability in immich-migrator, please report it re
 
 Instead, please report security issues by emailing:
 
-**k.github@lundgrens.net**
+**<k.github@lundgrens.net>**
 
 Include the following information:
 
