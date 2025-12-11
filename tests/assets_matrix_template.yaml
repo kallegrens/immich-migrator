@@ -1,0 +1,351 @@
+# Assets matrix template for tests
+# Fill each `path` with a real path under `tests/assets/` (or absolute path).
+# For `live_photo` cases, provide both `photo.path` and `video.path`.
+# Use this file as a source of test fixtures in pytest.
+
+test_cases:
+  # ------------------ Photo-only permutations (4 combos) ------------------
+  - id: P001_photo_good
+    description: "Photo-only: has EXIF date, correct extension (good image)"
+    type: photo
+    photo:
+      path: "tests/assets/P001_photo_good.jpg" # <FILL: tests/assets/photo_good.jpg>
+      missing_exif: false
+      wrong_extension: false
+    expected: "EXIF present; no injection; checksum should match after download"
+
+  - id: P002_photo_missing_exif
+    description: "Photo-only: missing EXIF date"
+    type: photo
+    photo:
+      path: "tests/assets/P002_photo_missing_exif.jpg" # <FILL: tests/assets/photo_missing_exif.jpg>
+      missing_exif: true
+      wrong_extension: false
+    expected: "EXIF injection should run; checksum changes tracked via override"
+
+  - id: P003_photo_wrong_ext
+    description: "Photo-only: file extension is wrong (e.g., .png for a jpeg)"
+    type: photo
+    photo:
+      path: "tests/assets/P003_photo_wrong_ext.png" # <FILL: tests/assets/photo_wrong_ext.png>
+      missing_exif: false
+      wrong_extension: true
+    expected: "Normalize extension by MIME; EXIF injection may still succeed"
+
+  - id: P004_photo_missing_exif_wrong_ext
+    description: "Photo-only: missing EXIF and wrong extension"
+    type: photo
+    photo:
+      path: "tests/assets/P004_photo_missing_exif_wrong_ext.png" # <FILL: tests/assets/photo_missing_exif_wrong_ext.png>
+      missing_exif: true
+      wrong_extension: true
+    expected: "Both normalization and injection attempted; checksum override required"
+
+  # ------------------ Video-only permutations (4 combos) ------------------
+  - id: V001_video_good
+    description: "Video-only: has creation metadata, correct extension (good video)"
+    type: video
+    video:
+      path: "tests/assets/V001_video_good.mov" # <FILL: tests/assets/video_good.mov>
+      missing_exif: false
+      wrong_extension: false
+    expected: "No EXIF injection necessary; upload/verify succeeds"
+
+  - id: V002_video_missing_exif
+    description: "Video-only: missing creation time metadata"
+    type: video
+    video:
+      path: "tests/assets/V002_video_missing_exif.mov" # <FILL: tests/assets/video_missing_exif.mov>
+      missing_exif: true
+      wrong_extension: false
+    expected: "QuickTime/MP4 tags injected if supported; checksum override recorded"
+
+  - id: V003_video_wrong_ext
+    description: "Video-only: wrong file extension"
+    type: video
+    video:
+      path: "tests/assets/V003_video_wrong_ext.avi" # <FILL: tests/assets/video_wrong_ext.mp4_that_is_avi.avi>
+      missing_exif: false
+      wrong_extension: true
+    expected: "Normalize extension by MIME; injection attempt if needed"
+
+  - id: V004_video_missing_exif_wrong_ext
+    description: "Video-only: missing metadata and wrong extension"
+    type: video
+    video:
+      path: "tests/assets/V004_video_missing_exif_wrong_ext.mp4" # <FILL: tests/assets/video_missing_exif_wrong_ext.avi>
+      missing_exif: true
+      wrong_extension: true
+    expected: "Both normalization and injection attempted; track checksum override"
+
+  # ------------------ Live Photo pair permutations (16 combos) ------------------
+  # These cover all combinations of photo_missing_exif, photo_wrong_ext,
+  # video_missing_exif, video_wrong_ext for a photo+video live photo pair.
+
+  # Generate 16 entries: L001..L016
+  - id: L001
+    description: "Live photo: both good"
+    type: live_photo
+    photo:
+      path: "tests/assets/L001_live_photo.jpg" # <FILL: tests/assets/live_photo_1_photo.jpg>
+      missing_exif: false
+      wrong_extension: false
+    video:
+      path: "tests/assets/L001_live_video.mov" # <FILL: tests/assets/live_photo_1_video.mov>
+      missing_exif: false
+      wrong_extension: false
+    expected: "Pair uploaded together; link created on destination"
+
+  - id: L002
+    description: "Live photo: photo missing exif; video good"
+    type: live_photo
+    photo:
+      path: "tests/assets/L002_live_photo.jpg"
+      missing_exif: true
+      wrong_extension: false
+    video:
+      path: "tests/assets/L002_live_video.mov"
+      missing_exif: false
+      wrong_extension: false
+    expected: "Inject EXIF into photo; recompute photo checksum; link succeeds"
+
+  - id: L003
+    description: "Live photo: photo wrong ext; video good"
+    type: live_photo
+    photo:
+      path: "tests/assets/L003_live_photo.png"
+      missing_exif: false
+      wrong_extension: true
+    video:
+      path: "tests/assets/L003_live_video.mov"
+      missing_exif: false
+      wrong_extension: false
+    expected: "Normalize photo extension; upload pair; link succeeds"
+
+  - id: L004
+    description: "Live photo: photo missing exif + wrong ext; video good"
+    type: live_photo
+    photo:
+      path: "tests/assets/L004_live_photo.png"
+      missing_exif: true
+      wrong_extension: true
+    video:
+      path: "tests/assets/L004_live_video.mov"
+      missing_exif: false
+      wrong_extension: false
+    expected: "Photo normalization + injection; track overrides; link succeeds"
+
+  - id: L005
+    description: "Live photo: video missing exif; photo good"
+    type: live_photo
+    photo:
+      path: "tests/assets/L005_live_photo.jpg"
+      missing_exif: false
+      wrong_extension: false
+    video:
+      path: "tests/assets/L005_live_video.mov"
+      missing_exif: true
+      wrong_extension: false
+    expected: "Inject into video; recompute video checksum; link succeeds"
+
+  - id: L006
+    description: "Live photo: video missing exif; photo missing exif"
+    type: live_photo
+    photo:
+      path: "tests/assets/L006_live_photo.jpg"
+      missing_exif: true
+      wrong_extension: false
+    video:
+      path: "tests/assets/L006_live_video.mov"
+      missing_exif: true
+      wrong_extension: false
+    expected: "Inject both; recompute both checksums; verify and link"
+
+  - id: L007
+    description: "Live photo: video wrong ext; photo good"
+    type: live_photo
+    photo:
+      path: "tests/assets/L007_live_photo.jpg"
+      missing_exif: false
+      wrong_extension: false
+    video:
+      path: "tests/assets/L007_live_video.avi"
+      missing_exif: false
+      wrong_extension: true
+    expected: "Normalize video extension; upload and link"
+
+  - id: L008
+    description: "Live photo: video wrong ext; photo missing exif"
+    type: live_photo
+    photo:
+      path: "tests/assets/L008_live_photo.jpg"
+      missing_exif: true
+      wrong_extension: false
+    video:
+      path: "tests/assets/L008_live_video.mp4"
+      missing_exif: false
+      wrong_extension: true
+    expected: "Photo injection + video normalization; track overrides"
+
+  - id: L009
+    description: "Live photo: video missing exif + wrong ext; photo good"
+    type: live_photo
+    photo:
+      path: "tests/assets/L009_live_photo.jpg"
+      missing_exif: false
+      wrong_extension: false
+    video:
+      path: "tests/assets/L009_live_video.avi"
+      missing_exif: true
+      wrong_extension: true
+    expected: "Video normalization + injection; recompute; link"
+
+  - id: L010
+    description: "Live photo: photo missing exif + video missing exif + both wrong ext"
+    type: live_photo
+    photo:
+      path: "tests/assets/L010_live_photo.png"
+      missing_exif: true
+      wrong_extension: true
+    video:
+      path: "tests/assets/L010_live_video.mp4"
+      missing_exif: true
+      wrong_extension: true
+    expected: "All normalization + injection steps; track both overrides"
+
+  # The remaining 6 permutations (L011..L016) cover mixed combos where one
+  # side has wrong_ext while the other has missing_exif, etc. Provide placeholders.
+  - id: L011
+    description: "Live photo: photo wrong ext; video missing exif"
+    type: live_photo
+    photo:
+      path: "tests/assets/L011_live_photo.png"
+      missing_exif: false
+      wrong_extension: true
+    video:
+      path: "tests/assets/L011_live_video.mov"
+      missing_exif: true
+      wrong_extension: false
+    expected: "Mixed normalization + injection"
+
+  - id: L012
+    description: "Live photo: photo wrong ext + missing_exif; video wrong ext"
+    type: live_photo
+    photo:
+      path: "tests/assets/L012_live_photo.png"
+      missing_exif: true
+      wrong_extension: true
+    video:
+      path: "tests/assets/L012_live_video.avi"
+      missing_exif: false
+      wrong_extension: true
+    expected: "Mixed normalization + injection"
+
+  - id: L013
+    description: "Live photo: photo missing exif; video wrong ext + missing_exif"
+    type: live_photo
+    photo:
+      path: "tests/assets/L013_live_photo.jpg"
+      missing_exif: true
+      wrong_extension: false
+    video:
+      path: "tests/assets/L013_live_video.mp4"
+      missing_exif: true
+      wrong_extension: true
+    expected: "Mixed normalization + injection"
+
+  - id: L014
+    description: "Live photo: photo good; video wrong ext + missing_exif"
+    type: live_photo
+    photo:
+      path: "tests/assets/L014_live_photo.jpg"
+      missing_exif: false
+      wrong_extension: false
+    video:
+      path: "tests/assets/L014_live_video.avi"
+      missing_exif: true
+      wrong_extension: true
+    expected: "Mixed normalization + injection"
+
+  - id: L015
+    description: "Live photo: photo wrong ext; video good"
+    type: live_photo
+    photo:
+      path: "tests/assets/L015_live_photo.png"
+      missing_exif: false
+      wrong_extension: true
+    video:
+      path: "tests/assets/L015_live_video.mov"
+      missing_exif: false
+      wrong_extension: false
+    expected: "Normalize photo; link"
+
+  - id: L016
+    description: "Live photo: photo missing exif; video wrong ext + missing_exif"
+    type: live_photo
+    photo:
+      path: "tests/assets/L016_live_photo.jpg"
+      missing_exif: true
+      wrong_extension: false
+    video:
+      path: "tests/assets/L016_live_video.mp4"
+      missing_exif: true
+      wrong_extension: true
+    expected: "Mixed normalization + injection; verify checksums"
+
+  # ------------------ Additional edge-case tests (separate entries) ------------------
+  - id: E001_checksum_mismatch
+    description: "Downloaded file checksum mismatch (simulate corrupted download)"
+    type: photo
+    photo:
+      path: "tests/assets/E001_photo_checksum_mismatch.jpg" # <FILL: tests/assets/photo_checksum_mismatch.jpg>
+      missing_exif: false
+      wrong_extension: false
+    expected: "Downloader retries; if still mismatched mark as failed"
+
+  - id: E002_corrupted_photo
+    description: "Truncated/corrupted photo file (EXIF injection should fail gracefully)"
+    type: photo
+    photo:
+      path: "tests/assets/E002_photo_corrupted.jpg" # <FILL: tests/assets/photo_corrupted.jpg>
+      missing_exif: false
+      wrong_extension: false
+    expected: "Exif injection may fail with warning; asset marked for manual recovery"
+
+  - id: E003_orphan_live_video
+    description: "Video exists with no matching photo (orphan live video)"
+    type: video
+    video:
+      path: "tests/assets/E003_orphan_live_video.mov" # <FILL: tests/assets/orphan_live_video.mov>
+      missing_exif: false
+      wrong_extension: false
+    expected: "Uploader uploads video; no link attempted"
+
+  - id: E004_special_chars_filename
+    description: "Filename contains special/unicode characters"
+    type: photo
+    photo:
+      path: "tests/assets/E004_photo_ünícødé_@_#.jpg" # <FILL: tests/assets/photo_ünícødé @ #!.jpg>
+      missing_exif: false
+      wrong_extension: false
+    expected: "Filesystem handling and upload handle special characters"
+
+  - id: E005_sidecar_xmp
+    description: "Photo with external XMP sidecar providing timestamp"
+    type: photo
+    photo:
+      path: "tests/assets/E005_photo_with_sidecar.jpg" # <FILL: tests/assets/photo_with_sidecar.jpg>
+      sidecar_path: "tests/assets/E005_photo_with_sidecar.xmp" # <FILL: tests/assets/photo_with_sidecar.xmp>
+      missing_exif: true
+      wrong_extension: false
+    expected: "Sidecar used to determine date; injection proceeds"
+
+  - id: E006_exiftool_failure
+    description: "Simulate exiftool not installed or failing subprocess"
+    type: photo
+    photo:
+      path: "tests/assets/E006_photo_exiftool_fail.jpg" # <FILL: tests/assets/photo_exiftool_fail.jpg>
+      missing_exif: true
+      wrong_extension: false
+    expected: "Exif injection fails gracefully; asset tracked for manual recovery"
+# End of template

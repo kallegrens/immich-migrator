@@ -1,0 +1,39 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+# Deny all permissions by default for security
+permissions: {}
+
+jobs:
+  release-please:
+    name: Create Release PR
+    runs-on: ubuntu-latest
+    # Grant minimal permissions required for release-please to create releases and PRs
+    permissions:
+      contents: write # Required to create releases and push commits
+      pull-requests: write # Required to create and update release PRs
+    steps:
+      - uses: googleapis/release-please-action@c3fc4de07084f75a2b61a5b933069bda6edf3d5c # v4
+        id: release
+        with:
+          release-type: python
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
+
+      # These outputs will be used by the publish workflow
+      - name: Output release info
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          echo "Release created: ${STEPS_RELEASE_OUTPUTS_TAG_NAME}"
+          echo "Upload URL: ${STEPS_RELEASE_OUTPUTS_UPLOAD_URL}"
+        env:
+          STEPS_RELEASE_OUTPUTS_TAG_NAME: ${{ steps.release.outputs.tag_name }}
+          STEPS_RELEASE_OUTPUTS_UPLOAD_URL: ${{ steps.release.outputs.upload_url }}

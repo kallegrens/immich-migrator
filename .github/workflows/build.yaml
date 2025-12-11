@@ -1,0 +1,70 @@
+name: Build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Deny all permissions by default for security
+permissions: {}
+
+jobs:
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@e4db8464a088ece1b920f60402e813ea4de65b8f # v4
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build package
+        run: uv build
+
+      - name: Verify package contents
+        run: |
+          echo "Checking wheel contents..."
+          unzip -l dist/*.whl | grep -E '(py\.typed|README\.md|LICENSE)' || {
+            echo "ERROR: Missing required files in wheel"
+            exit 1
+          }
+          echo "Checking sdist contents..."
+          tar -tzf dist/*.tar.gz | grep -E '(py\.typed|README\.md|LICENSE|tests/)' || {
+            echo "ERROR: Missing required files in sdist"
+            exit 1
+          }
+          echo "✓ Package contents verified"
+
+      - name: List package contents
+        run: |
+          tar -tzf dist/*.tar.gz | head -20
+          unzip -l dist/*.whl | head -20
+
+      - name: Test installation from wheel
+        run: |
+          uv venv test-env
+          source test-env/bin/activate
+          uv pip install dist/*.whl
+          which immich-migrator
+          immich-migrator --help
+          immich-migrator version
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
