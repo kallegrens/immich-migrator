@@ -42,9 +42,9 @@ class TestAlbumApiContract:
         album = immich_api_factory.album()
 
         uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-        assert re.match(
-            uuid_pattern, album["id"], re.IGNORECASE
-        ), f"Album ID not valid UUID: {album['id']}"
+        assert re.match(uuid_pattern, album["id"], re.IGNORECASE), (
+            f"Album ID not valid UUID: {album['id']}"
+        )
 
     @pytest.mark.contract
     def test_album_list_response_is_array(self, immich_api_factory):
@@ -159,9 +159,9 @@ class TestAssetApiContract:
 
         for filename, expected_mime in test_cases:
             asset = immich_api_factory.asset(original_file_name=filename)
-            assert (
-                asset["originalMimeType"] == expected_mime
-            ), f"Expected {expected_mime} for {filename}, got {asset['originalMimeType']}"
+            assert asset["originalMimeType"] == expected_mime, (
+                f"Expected {expected_mime} for {filename}, got {asset['originalMimeType']}"
+            )
 
 
 # ============================================================================

@@ -84,7 +84,7 @@ class ImmichClient:
 
             return response
 
-    @retry(  # type: ignore[misc]
+    @retry(  # type: ignore[untyped-decorator]
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
@@ -117,7 +117,7 @@ class ImmichClient:
         logger.info(f"Found {len(albums)} albums")
         return albums
 
-    @retry(  # type: ignore[misc]
+    @retry(  # type: ignore[untyped-decorator]
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
@@ -209,7 +209,7 @@ class ImmichClient:
 
         return video_assets  # type: ignore[return-value]
 
-    @retry(  # type: ignore[misc]
+    @retry(  # type: ignore[untyped-decorator]
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
@@ -251,7 +251,7 @@ class ImmichClient:
                 return None
             raise
 
-    @retry(  # type: ignore[misc]
+    @retry(  # type: ignore[untyped-decorator]
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
@@ -287,7 +287,7 @@ class ImmichClient:
         logger.debug(f"Downloaded {asset.original_file_name} to {dest_path}")
         return dest_path
 
-    @retry(  # type: ignore[misc]
+    @retry(  # type: ignore[untyped-decorator]
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,

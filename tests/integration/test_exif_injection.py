@@ -99,9 +99,9 @@ class TestPhotoExifReading:
         date_original = get_date_tag(metadata, "DateTimeOriginal")
         create_date = get_date_tag(metadata, "CreateDate")
 
-        assert (
-            date_original is not None or create_date is not None
-        ), f"Photo should have date tags. Keys: {list(metadata.keys())}"
+        assert date_original is not None or create_date is not None, (
+            f"Photo should have date tags. Keys: {list(metadata.keys())}"
+        )
 
     @pytest.mark.integration
     def test_read_photo_without_exif_dates(self, assets_dir):
@@ -115,9 +115,9 @@ class TestPhotoExifReading:
         date_original = get_date_tag(metadata, "EXIF:DateTimeOriginal")
         create_date = get_date_tag(metadata, "EXIF:CreateDate")
 
-        assert (
-            date_original is None and create_date is None
-        ), "Photo without EXIF should not have date tags"
+        assert date_original is None and create_date is None, (
+            "Photo without EXIF should not have date tags"
+        )
 
     @pytest.mark.integration
     @pytest.mark.parametrize("case", get_photo_cases(), ids=lambda c: c["id"])
@@ -156,9 +156,9 @@ class TestVideoMetadataReading:
         # Should have QuickTime date tags
         create_date = get_date_tag(metadata, "QuickTime:CreateDate")
 
-        assert (
-            create_date is not None
-        ), f"Video should have QuickTime dates. Keys: {list(metadata.keys())}"
+        assert create_date is not None, (
+            f"Video should have QuickTime dates. Keys: {list(metadata.keys())}"
+        )
 
     @pytest.mark.integration
     def test_read_video_without_dates(self, assets_dir):
@@ -174,9 +174,9 @@ class TestVideoMetadataReading:
         # QuickTime files with stripped metadata show "0000:00:00 00:00:00"
         # We consider this as "no valid date"
         if create_date is not None:
-            assert create_date.startswith(
-                "0000:00:00"
-            ), f"Video without dates should have zero date or None, got: {create_date}"
+            assert create_date.startswith("0000:00:00"), (
+                f"Video without dates should have zero date or None, got: {create_date}"
+            )
 
     @pytest.mark.integration
     @pytest.mark.parametrize("case", get_video_cases(), ids=lambda c: c["id"])
@@ -193,13 +193,13 @@ class TestVideoMetadataReading:
         if missing_exif:
             # Should either be None or 0000:00:00 (stripped QuickTime)
             if create_date is not None:
-                assert create_date.startswith(
-                    "0000:00:00"
-                ), f"{case['id']}: Should not have valid date, got: {create_date}"
+                assert create_date.startswith("0000:00:00"), (
+                    f"{case['id']}: Should not have valid date, got: {create_date}"
+                )
         else:
-            assert create_date is not None and not create_date.startswith(
-                "0000:00:00"
-            ), f"{case['id']}: Should have valid date metadata"
+            assert create_date is not None and not create_date.startswith("0000:00:00"), (
+                f"{case['id']}: Should have valid date metadata"
+            )
 
 
 # ============================================================================

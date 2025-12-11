@@ -243,9 +243,9 @@ class TestLivePhotoExifPermutations:
         if photo_should_have_exif:
             assert photo_date is not None, f"{case['id']}: Photo should have EXIF date"
         else:
-            assert (
-                photo_date is None
-            ), f"{case['id']}: Photo should NOT have EXIF date, got: {photo_date}"
+            assert photo_date is None, (
+                f"{case['id']}: Photo should NOT have EXIF date, got: {photo_date}"
+            )
 
         # Check video metadata matches matrix
         video_should_have_metadata = not case["video"].get("missing_exif", False)
