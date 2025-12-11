@@ -23,8 +23,7 @@ cd immich-migrator
 2. **Install dependencies**
 
 ```bash
-uv sync
-uv pip install -e ".[dev,test]"
+uv sync --all-groups
 ```
 
 3. **Install pre-commit hooks**

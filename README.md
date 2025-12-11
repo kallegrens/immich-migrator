@@ -37,7 +37,6 @@ pip install immich-migrator
 git clone https://github.com/kallegrens/immich-migrator.git
 cd immich-migrator
 uv sync
-uv pip install -e .
 ```
 
 ## Quick Start
