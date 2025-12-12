@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Verify package contents and structure
+# Usage: ./scripts/verify-package
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+cd "${PROJECT_ROOT}"
+
+if [[ ! -d "dist" ]]; then
+    echo "❌ ERROR: dist/ directory not found. Run ./scripts/build first."
+    exit 1
+fi
+
+echo "🔍 Verifying wheel contents..."
+wheel_files=$(unzip -l dist/*.whl 2>/dev/null || true)
+if ! echo "$wheel_files" | grep -q 'py.typed'; then
+    echo "❌ ERROR: Missing py.typed in wheel"
+    exit 1
+fi
+if ! echo "$wheel_files" | grep -q 'METADATA'; then
+    echo "❌ ERROR: Missing METADATA in wheel"
+    exit 1
+fi
+if ! echo "$wheel_files" | grep -q 'LICENSE'; then
+    echo "❌ ERROR: Missing LICENSE in wheel"
+    exit 1
+fi
+
+echo "🔍 Verifying sdist contents..."
+sdist_files=$(tar -tzf dist/*.tar.gz 2>/dev/null || true)
+if ! echo "$sdist_files" | grep -q 'py.typed'; then
+    echo "❌ ERROR: Missing py.typed in sdist"
+    exit 1
+fi
+if ! echo "$sdist_files" | grep -q 'README.md'; then
+    echo "❌ ERROR: Missing README.md in sdist"
+    exit 1
+fi
+if ! echo "$sdist_files" | grep -q 'LICENSE'; then
+    echo "❌ ERROR: Missing LICENSE in sdist"
+    exit 1
+fi
+if ! echo "$sdist_files" | grep -q 'tests/'; then
+    echo "❌ ERROR: Missing tests/ directory in sdist"
+    exit 1
+fi
+
+echo "✅ Package contents verified"
+
+echo ""
+echo "📦 Package summary:"
+echo "  Wheel: $(ls -lh dist/*.whl | awk '{print $9, "(" $5 ")"}')"
+echo "  Sdist: $(ls -lh dist/*.tar.gz | awk '{print $9, "(" $5 ")"}')"

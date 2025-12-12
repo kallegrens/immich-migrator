@@ -19,12 +19,12 @@ jobs:
     # Grant minimal permissions required for release-please to create releases and PRs
     permissions:
       contents: write # Required to create releases and push commits
+      issues: write # Required to create release issues
       pull-requests: write # Required to create and update release PRs
     steps:
       - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4.4.0
         id: release
         with:
-          release-type: python
           config-file: .github/release-please-config.json
           manifest-file: .github/.release-please-manifest.json
 

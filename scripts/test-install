@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Test installation from built wheel
+# Usage: ./scripts/test-install
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+cd "${PROJECT_ROOT}"
+
+if [[ ! -d "dist" ]]; then
+    echo "❌ ERROR: dist/ directory not found. Run ./scripts/build first."
+    exit 1
+fi
+
+TEST_ENV="${PROJECT_ROOT}/.test-install-env"
+
+echo "🧪 Creating test virtual environment..."
+rm -rf "${TEST_ENV}"
+uv venv "${TEST_ENV}"
+
+echo "📥 Installing wheel in test environment..."
+# shellcheck disable=SC1091
+source "${TEST_ENV}/bin/activate"
+uv pip install dist/*.whl
+
+echo "🔍 Testing installed CLI..."
+which immich-migrator
+
+echo "📝 Running --help..."
+immich-migrator --help
+
+echo "🏷️  Running version command..."
+immich-migrator version
+
+echo ""
+echo "✅ Installation test passed"
+
+# Cleanup
+deactivate
+rm -rf "${TEST_ENV}"

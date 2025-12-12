@@ -34,36 +34,17 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      - name: Install dependencies
+        run: uv sync --all-groups
+
       - name: Build package
-        run: uv build
+        run: uv run just build
 
       - name: Verify package contents
-        run: |
-          echo "Checking wheel contents..."
-          unzip -l dist/*.whl | grep -E '(py\.typed|README\.md|LICENSE)' || {
-            echo "ERROR: Missing required files in wheel"
-            exit 1
-          }
-          echo "Checking sdist contents..."
-          tar -tzf dist/*.tar.gz | grep -E '(py\.typed|README\.md|LICENSE|tests/)' || {
-            echo "ERROR: Missing required files in sdist"
-            exit 1
-          }
-          echo "✓ Package contents verified"
-
-      - name: List package contents
-        run: |
-          tar -tzf dist/*.tar.gz | head -20
-          unzip -l dist/*.whl | head -20
+        run: uv run just verify
 
       - name: Test installation from wheel
-        run: |
-          uv venv test-env
-          source test-env/bin/activate
-          uv pip install dist/*.whl
-          which immich-migrator
-          immich-migrator --help
-          immich-migrator version
+        run: uv run just test-install
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
