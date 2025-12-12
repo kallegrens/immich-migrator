@@ -1,0 +1,55 @@
+# immich-migrator task runner
+#
+# This file delegates complex logic to shell scripts in ./scripts/
+# to ensure consistency between local development and CI/CD workflows.
+
+set shell := ["bash", "-c"]
+
+# List available commands
+default:
+    @just --list
+
+# Clean all build artifacts and caches
+clean:
+    ./scripts/clean
+
+# Run pre-commit hooks and tests
+check:
+    ./scripts/check
+
+# Build the package (sdist and wheel)
+build:
+    ./scripts/build
+
+# Verify the package contents
+verify:
+    ./scripts/verify-package
+
+# Test installation in a fresh environment
+test-install:
+    ./scripts/test-install
+
+# Install dependencies and set up the environment
+install:
+    uv sync --all-groups
+
+# Run linters (pre-commit hooks)
+lint:
+    uv tool run pre-commit run --all-files
+
+# Format code
+fmt:
+    uv run ruff format .
+    uv run ruff check --fix .
+
+# Run tests
+test:
+    uv run pytest
+
+# Run tests with coverage
+test-cov:
+    uv run pytest --cov=src/immich_migrator --cov-report=html --cov-report=term
+
+# Run the full release pipeline locally
+all: clean check build verify test-install
+    @echo "✅ All checks passed!"

@@ -38,22 +38,14 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      - name: Install dependencies
+        run: uv sync --all-groups
+
       - name: Build package
-        run: uv build
+        run: uv run just build
 
       - name: Verify package contents
-        run: |
-          echo "Checking wheel contents..."
-          unzip -l dist/*.whl | grep -E '(py\.typed|README\.md|LICENSE)' || {
-            echo "ERROR: Missing required files in wheel"
-            exit 1
-          }
-          echo "Checking sdist contents..."
-          tar -tzf dist/*.tar.gz | grep -E '(py\.typed|README\.md|LICENSE|tests/)' || {
-            echo "ERROR: Missing required files in sdist"
-            exit 1
-          }
-          echo "✓ Package contents verified"
+        run: uv run just verify
 
       - name: Publish to PyPI
         run: uv publish

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Clean build artifacts and caches
+# Usage: ./scripts/clean
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+cd "${PROJECT_ROOT}"
+
+echo "🧹 Cleaning build artifacts..."
+
+# Remove build artifacts
+rm -rf dist/
+rm -rf build/
+rm -rf *.egg-info/
+rm -rf src/*.egg-info/
+
+# Remove Python caches
+find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+find . -type f -name "*.pyc" -delete 2>/dev/null || true
+find . -type f -name "*.pyo" -delete 2>/dev/null || true
+
+# Remove test artifacts
+rm -rf .pytest_cache/
+rm -rf .test-install-env/
+rm -rf htmlcov/
+rm -f .coverage
+rm -f coverage.xml
+
+# Remove type checking cache
+rm -rf .mypy_cache/
+
+# Remove linting cache
+rm -rf .ruff_cache/
+
+echo "✅ Clean complete!"
