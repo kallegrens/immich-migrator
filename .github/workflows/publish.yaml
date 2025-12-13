@@ -17,8 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     # Grant minimal permissions required for PyPI trusted publishing
     permissions:
-      contents: read
+      contents: write # Required to upload release artifacts
       id-token: write # Required for trusted publishing
+      attestations: write # Required for generating attestations
     environment:
       name: pypi
       url: https://pypi.org/p/immich-migrator
@@ -47,15 +48,24 @@ jobs:
       - name: Verify package contents
         run: uv run just verify
 
-      - name: Publish to PyPI
-        run: uv publish
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-          # Note: Add PYPI_API_TOKEN secret to your repository settings
-          # Or configure trusted publishing:
-          # https://docs.astral.sh/uv/guides/publish/#trusted-publishing
+      - name: Generate SHA256 checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
 
-      - name: Upload to GitHub Release
+      - name: Generate build provenance attestations
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-path: "dist/*"
+
+      - name: Publish to PyPI with trusted publishing
+        run: uv publish
+
+      - name: Upload artifacts to GitHub Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
-          files: dist/*
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS
