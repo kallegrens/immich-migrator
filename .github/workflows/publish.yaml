@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     # Grant minimal permissions required for PyPI trusted publishing
     permissions:
+      actions: read # Required for SBOM action to find workflow artifacts when attaching release assets
       contents: write # Required to upload release artifacts
       id-token: write # Required for trusted publishing
       attestations: write # Required for generating attestations
@@ -55,9 +56,15 @@ jobs:
           cat SHA256SUMS
 
       - name: Generate SBOM
-        run: |
-          pipx install cyclonedx-bom
-          cyclonedx-py environment -o dist/sbom.json
+        uses: anchore/sbom-action@43a17d6e7add2b5535efe4dcae9952337c479a93 # v0.20.11
+        with:
+          path: ./
+          artifact-name: sbom.spdx.json
+          output-file: dist/sbom.spdx.json
+          format: spdx-json
+          upload-artifact: true
+          upload-release-assets: true
+          dependency-snapshot: true
 
       - name: Generate build provenance attestations
         id: attest
@@ -77,7 +84,7 @@ jobs:
         id: build-meta
         run: |
           {
-            echo "python_version=$(uv python --version | cut -d' ' -f2)"
+            echo "python_version=$(uv run python --version | cut -d' ' -f2)"
             echo "uv_version=$(uv --version | cut -d' ' -f2)"
             echo "build_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           } >> "$GITHUB_OUTPUT"
@@ -89,8 +96,7 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
             dist/SHA256SUMS
-            dist/sbom.json
-            ${{ steps.attest.outputs.bundle-path }}
+          append_body: true
           body: |
 
             ### 🔨 Build Information
@@ -103,11 +109,11 @@ jobs:
 
             Verify package integrity:
             ```bash
-            # Download and verify checksums
+            # Verify checksums
             sha256sum -c SHA256SUMS
 
-            # Verify attestation (requires GitHub CLI)
+            # Verify build provenance attestation (requires GitHub CLI)
             gh attestation verify immich_migrator-*.whl --owner ${{ github.repository_owner }}
             ```
 
-            See [attestation](${{ steps.attest.outputs.attestation-url }}) for SLSA provenance details.
+            See [SLSA build provenance](${{ steps.attest.outputs.attestation-url }}) for attestation details.
