@@ -11,14 +11,7 @@
       "extra-files": [
         {
           "type": "generic",
-          "path": "README.md",
-          "replacements": [
-            {
-              "type": "regex",
-              "pattern": "\\[Version\\s+([0-9]+\\.[0-9]+\\.[0-9]+)\\]\\(https://github.com/kallegrens/immich-migrator/releases/tag/v[0-9]+\\.[0-9]+\\.[0-9]+\\) is the current stable release\\.",
-              "template": "[Version {{version}}](https://github.com/kallegrens/immich-migrator/releases/tag/v{{version}}) is the current stable release."
-            }
-          ]
+          "path": "README.md"
         }
       ]
     }

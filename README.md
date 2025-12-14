@@ -23,9 +23,6 @@ Migrate your photo library between **Immich** servers with confidence.
 
 This CLI tool downloads albums 📥, preserves EXIF metadata 📝, and uploads to your new server 📤 — all with **interactive selection 🎯, progress tracking 📊, and state persistence 💾** for reliable migrations.
 
-> [!IMPORTANT]
-> This tool requires Python 3.11+ and uses the official Immich CLI for uploads to ensure maximum compatibility.
-
 ---
 
 ## 📦 Installation
@@ -78,9 +75,6 @@ Before you begin, ensure you have:
   ```
 
 ### 1. Prepare a unified credentials file
-
-> [!CAUTION]
-> Never commit your `.immich.env` file to version control! Add it to `.gitignore` to protect your API keys.
 
 The tool expects a single credentials file containing both old and new server details. By default, it looks for `~/.immich.env`.
 
@@ -237,6 +231,10 @@ The tool automatically retries failed downloads with exponential backoff.
 uv sync
 ```
 
+> [!CAUTION]
+> Never commit your `.immich.env` file to version control! Add it to `.gitignore` to protect your API keys.
+>
+
 ### Run Tests
 
 ```bash
@@ -259,7 +257,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history and breaking changes.
 ### Latest Release
 
 > [!NOTE]
-> [Version 0.3.2](https://github.com/kallegrens/immich-migrator/releases/tag/v0.3.2) is the current stable release.
+> [Version 0.3.2](https://github.com/kallegrens/immich-migrator/releases/tag/v0.3.2) is the current stable release. <!-- {x-release-please-version} -->
 
 ---
 
