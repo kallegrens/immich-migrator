@@ -1,25 +1,41 @@
 # 📸 Immich Migration Tool
 
-[![Tests](https://github.com/kallegrens/immich-migrator/actions/workflows/test.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/test.yaml)
-[![Build](https://github.com/kallegrens/immich-migrator/actions/workflows/build.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/build.yaml)
-[![Lint](https://github.com/kallegrens/immich-migrator/actions/workflows/lint.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/lint.yaml)
-[![Publish](https://github.com/kallegrens/immich-migrator/actions/workflows/publish.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/publish.yaml)
-[![codecov](https://codecov.io/gh/kallegrens/immich-migrator/branch/main/graph/badge.svg)](https://codecov.io/gh/kallegrens/immich-migrator)
-[![PyPI version](https://badge.fury.io/py/immich-migrator.svg)](https://badge.fury.io/py/immich-migrator)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: AGPLv3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![PyPI][pypi-badge]][pypi]
+[![Python Version][python-badge]][pypi]
+[![Tests][tests-badge]][tests]
+[![Coverage][coverage-badge]][coverage]
+[![License][license-badge]][license]
+[![Conventional Commits][cc-badge]][cc]
 
-CLI tool for migrating photo albums between Immich servers with interactive selection, progress tracking, and state persistence.
+[pypi-badge]: https://img.shields.io/pypi/v/immich-migrator
+[pypi]: https://pypi.org/project/immich-migrator/
+[python-badge]: https://img.shields.io/pypi/pyversions/immich-migrator
+[tests-badge]: https://github.com/kallegrens/immich-migrator/actions/workflows/test.yaml/badge.svg
+[tests]: https://github.com/kallegrens/immich-migrator/actions/workflows/test.yaml
+[coverage-badge]: https://codecov.io/gh/kallegrens/immich-migrator/branch/main/graph/badge.svg
+[coverage]: https://codecov.io/gh/kallegrens/immich-migrator
+[license-badge]: https://img.shields.io/github/license/kallegrens/immich-migrator
+[license]: ./LICENSE
+[cc-badge]: https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg
+[cc]: https://conventionalcommits.org
 
-## Installation
+Migrate your photo library between **Immich** servers with confidence.
 
-### Recommended: Run directly with uvx (no installation needed)
+This CLI tool downloads albums 📥, preserves EXIF metadata 📝, and uploads to your new server 📤 — all with **interactive selection 🎯, progress tracking 📊, and state persistence 💾** for reliable migrations.
 
-```bash
-uvx immich-migrator
-```
+> [!IMPORTANT]
+> This tool requires Python 3.11+ and uses the official Immich CLI for uploads to ensure maximum compatibility.
 
-This is the fastest way to try the tool without installing anything. Perfect for one-time migrations!
+---
+
+## 📦 Installation
+
+> [!TIP]
+> Use **uvx** to run the tool instantly without installation — perfect for one-time migrations:
+>
+> ```bash
+> uvx immich-migrator
+> ```
 
 ### Install with uv (persistent)
 
@@ -41,13 +57,17 @@ cd immich-migrator
 uv sync
 ```
 
-## Quick Start
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Python**: 3.12 or higher (if not using uvx)
-- **Disk Space**: At least 5GB free for temporary storage
-- **ExifTool**: For EXIF metadata handling
+Before you begin, ensure you have:
+
+- **Python**: 3.11 or higher ✅
+- **Disk Space**: At least 5GB free for temporary storage 💾
+- **ExifTool**: For EXIF metadata handling 📝
 
   ```bash
   # Ubuntu/Debian
@@ -59,9 +79,12 @@ uv sync
 
 ### 1. Prepare a unified credentials file
 
-The tool now expects a single, unified credentials file that contains credentials for both the old and new Immich servers. By default the CLI will look for `~/.immich.env` if you don't pass a credentials path explicitly.
+> [!CAUTION]
+> Never commit your `.immich.env` file to version control! Add it to `.gitignore` to protect your API keys.
 
-Create a file at `~/.immich.env` (or copy the example `.immich.env.example`):
+The tool expects a single credentials file containing both old and new server details. By default, it looks for `~/.immich.env`.
+
+Create `~/.immich.env` (or copy from `.immich.env.example`):
 
 ```bash
 # ~/.immich.env
@@ -74,65 +97,63 @@ NEW_IMMICH_SERVER_URL=https://new.immich.example.com
 NEW_IMMICH_API_KEY=your-new-server-api-key-here
 ```
 
-You can also provide an explicit path with `--credentials` (or `-c`). If `--credentials` is supplied, the default lookup at `~/.immich.env` is skipped.
+> [!NOTE]
+> You can provide an explicit path with `--credentials` (or `-c`). When specified, the default `~/.immich.env` lookup is skipped.
 
 ### 2. Run migration
 
-Using the default credentials file (`~/.immich.env`):
+Run with the default credentials file (`~/.immich.env`):
 
 ```bash
 immich-migrator
 ```
 
-Or provide an explicit credentials file (skips default lookup):
+Or specify a custom credentials path:
 
 ```bash
 immich-migrator -c /path/to/your/credentials.env
 ```
 
-This will:
+**What happens next?** 🎬
 
-1. Connect to your old Immich server
-2. Discover all albums (including unalbummed assets)
-3. Display an interactive menu for album selection
-4. Migrate selected albums to the new server with progress tracking
-5. Save state for resume capability
+1. 🔍 Connects to your old Immich server
+2. 📚 Discovers all albums (including unalbummed assets)
+3. 🎯 Displays an interactive menu for album selection
+4. ⬇️ Downloads selected albums with progress tracking
+5. ⬆️ Uploads to the new server with album organization intact
+6. 💾 Saves state for resume capability
 
-## Usage
+---
+
+## 🎯 Usage Examples
 
 ### Basic Migration
-
-Using the default credentials file (`~/.immich.env`):
 
 ```bash
 immich-migrator
 ```
 
-Or explicitly specify credentials file:
-
-```bash
-immich-migrator -c /path/to/credentials.env
-```
-
 ### Custom Batch Size
 
 ```bash
-immich-migrator -c /path/to/credentials.env --batch-size 30
+immich-migrator --batch-size 30
 ```
 
 ### Custom Configuration
 
 ```bash
-immich-migrator -c /path/to/credentials.env --config config.toml
+immich-migrator --config config.toml
 ```
 
 ### Debug Mode
 
 ```bash
-immich-migrator -c /path/to/credentials.env --log-level DEBUG
+immich-migrator --log-level DEBUG
 ```
 
-## Configuration
+---
+
+## ⚙️ Configuration
 
 Create a `config.toml` file for advanced configuration:
 
@@ -151,43 +172,64 @@ temp_dir = "~/.immich-migrator/temp"
 level = "INFO"
 ```
 
-## Features
+---
 
-- **Interactive Album Selection**: TUI for choosing albums to migrate
-- **Batch Processing**: Downloads and uploads in configurable batches
-- **Progress Tracking**: Real-time progress bars for downloads and uploads
-- **State Persistence**: Resume interrupted migrations
-- **Checksum Verification**: SHA1 verification for data integrity
-- **Error Handling**: Graceful recovery from network failures
-- **Unalbummed Assets**: Migrate photos not in any album
+## ✨ Features
 
-## Troubleshooting
+- 🎯 **Interactive Album Selection**: TUI for choosing albums to migrate
+- 📦 **Batch Processing**: Downloads and uploads in configurable batches
+- 📊 **Progress Tracking**: Real-time progress bars for downloads and uploads
+- 💾 **State Persistence**: Resume interrupted migrations seamlessly
+- ✅ **Checksum Verification**: SHA1 verification for data integrity
+- 🔄 **Error Handling**: Graceful recovery from network failures with retry logic
+- 📷 **Unalbummed Assets**: Migrate photos not organized in albums
+- 📝 **EXIF Preservation**: Maintains all photo metadata through the migration
 
-### Authentication Errors
+---
 
-If you see authentication errors:
+## ✅ Compatibility
 
-- Verify your API key is correct
-- Check that the server URL is accessible
-- Ensure you have the necessary permissions
+- **Python**: 3.11, 3.12, 3.13
+- **Operating Systems**: Linux, macOS, Windows (WSL recommended)
+- **Immich**: Tested with Immich v1.x servers
 
-### Storage Errors
+---
 
-If you see insufficient storage errors:
+## 🔧 Troubleshooting
 
-- Reduce batch size with `--batch-size`
-- Specify a different temp directory with `--temp-dir`
-- Free up disk space
+### 🔐 Authentication Errors
 
-### Network Errors
+> [!WARNING]
+> If you encounter authentication errors:
+>
+> - ✅ Verify your API key is correct and has not expired
+> - ✅ Check that the server URL is accessible (include https://)
+> - ✅ Ensure you have the necessary permissions on both servers
 
-The tool automatically retries failed downloads with exponential backoff. If errors persist:
+### 💾 Storage Errors
 
-- Check your network connection
-- Verify both servers are accessible
-- Try reducing concurrent downloads in config
+> [!NOTE]
+> If you see insufficient storage errors:
+>
+> - Reduce batch size: `--batch-size 10`
+> - Specify a different temp directory: `--temp-dir /path/to/large/disk`
+> - Free up disk space before retrying
 
-## Development
+### 🌐 Network Errors
+
+The tool automatically retries failed downloads with exponential backoff.
+
+> [!TIP]
+> If errors persist:
+>
+> - Check your network connection stability
+> - Verify both servers are accessible from your location
+> - Try reducing `max_concurrent_downloads` in `config.toml`
+> - Use `--log-level DEBUG` to see detailed error messages
+
+---
+
+## 🛠️ Development
 
 ### Setup
 
@@ -208,10 +250,32 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-## License
+---
 
-MIT License - see LICENSE file for details
+## 📖 Changelog
 
-## Contributing
+See [CHANGELOG.md](./CHANGELOG.md) for release history and breaking changes.
 
-Contributions welcome! Please read CONTRIBUTING.md for details.
+### Latest Release
+
+> [!NOTE]
+> [Version 0.3.2](https://github.com/kallegrens/immich-migrator/releases/tag/v0.3.2) is the current stable release.
+
+---
+
+## 🙌 Contributing
+
+Contributions welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for:
+
+- 📋 Development workflow
+- ✅ Testing requirements
+- 🎨 Code style guidelines
+- 🔒 Security practices
+
+---
+
+## 📄 License
+
+[GNU Affero General Public License v3.0](./LICENSE) — see LICENSE file for details.
+
+This ensures that any modifications to this tool, especially if hosted as a service, remain open source.
