@@ -39,7 +39,7 @@ install:
 
 # Run linters (pre-commit hooks)
 lint:
-    uv tool run pre-commit run --all-files
+    uv tool run pre-commit run --all-files --show-diff-on-failure
 
 # Format code
 fmt:
