@@ -1,6 +1,6 @@
 [project]
 name = "immich-migrator"
-version = "0.3.3"
+version = "0.3.4"
 description = "CLI tool for migrating photo albums between Immich servers"
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
