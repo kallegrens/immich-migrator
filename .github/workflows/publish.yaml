@@ -57,7 +57,7 @@ jobs:
       - name: Generate SBOM
         run: |
           pipx install cyclonedx-bom
-          cyclonedx-py environment --format json --output dist/sbom.json
+          cyclonedx-py environment -o dist/sbom.json
 
       - name: Generate build provenance attestations
         id: attest
