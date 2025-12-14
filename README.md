@@ -17,7 +17,8 @@
 [license-badge]: https://img.shields.io/github/license/kallegrens/immich-migrator
 [license]: ./LICENSE
 [cc-badge]: https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg
-[cc]: https://conventionalcommits.org
+[cc]: https://www.conventionalcommits.org/en/v1.0.0/
+[release-page]: https://github.com/kallegrens/immich-migrator/releases
 
 Migrate your photo library between **Immich** servers with confidence.
 
@@ -257,7 +258,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history and breaking changes.
 ### Latest Release
 
 > [!NOTE]
-> [Version 0.3.2](https://github.com/kallegrens/immich-migrator/releases/tag/v0.3.2) is the current stable release. <!-- {x-release-please-version} -->
+> [Version 0.3.2][release-page] is the current stable release. <!-- {x-release-please-version} -->
 
 ---
 
