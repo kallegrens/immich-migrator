@@ -258,7 +258,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history and breaking changes.
 ### Latest Release
 
 > [!NOTE]
-> [Version 0.3.2][release-page] is the current stable release. <!-- {x-release-please-version} -->
+> [Version 0.3.3][release-page] is the current stable release. <!-- {x-release-please-version} -->
 
 ---
 
