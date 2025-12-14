@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5](https://github.com/kallegrens/immich-migrator/compare/v0.3.4...v0.3.5) (2025-12-14)
+
+
+### Bug Fixes
+
+* **ci:** fix metadata appending, switched to anchore sbom ([efc3ff7](https://github.com/kallegrens/immich-migrator/commit/efc3ff74ce2bb94fde74f9094bc8d55b6eaef8ff))
+
 ## [0.3.4](https://github.com/kallegrens/immich-migrator/compare/v0.3.3...v0.3.4) (2025-12-14)
 
 
