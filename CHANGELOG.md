@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2](https://github.com/kallegrens/immich-migrator/compare/v0.3.1...v0.3.2) (2025-12-14)
+
+
+### Documentation
+
+* update README title with emoji ([d296363](https://github.com/kallegrens/immich-migrator/commit/d29636317b8d22c901d5e64947b9a78a7ef37e0a))
+
 ## [0.3.1](https://github.com/kallegrens/immich-migrator/compare/v0.3.0...v0.3.1) (2025-12-14)
 
 
