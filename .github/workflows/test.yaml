@@ -55,7 +55,7 @@ jobs:
 
       - name: Generate test assets
         run: |
-          uv run python scripts/generate_test_assets.py
+          uv run just generate-assets
 
       - name: Run all tests with coverage
         run: |
