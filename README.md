@@ -1,4 +1,4 @@
-# Immich Migration Tool
+# 📸 Immich Migration Tool
 
 [![Tests](https://github.com/kallegrens/immich-migrator/actions/workflows/test.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/test.yaml)
 [![Build](https://github.com/kallegrens/immich-migrator/actions/workflows/build.yaml/badge.svg)](https://github.com/kallegrens/immich-migrator/actions/workflows/build.yaml)
