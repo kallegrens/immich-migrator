@@ -76,9 +76,11 @@ jobs:
       - name: Capture build metadata
         id: build-meta
         run: |
-          echo "python_version=$(uv python --version | cut -d' ' -f2)" >> $GITHUB_OUTPUT
-          echo "uv_version=$(uv --version | cut -d' ' -f2)" >> $GITHUB_OUTPUT
-          echo "build_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          {
+            echo "python_version=$(uv python --version | cut -d' ' -f2)"
+            echo "uv_version=$(uv --version | cut -d' ' -f2)"
+            echo "build_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload artifacts to GitHub Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
