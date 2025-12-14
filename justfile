@@ -9,6 +9,10 @@ set shell := ["bash", "-c"]
 default:
     @just --list
 
+# List available commands
+help:
+    @just --list
+
 # Clean all build artifacts and caches
 clean:
     ./scripts/clean
@@ -49,6 +53,19 @@ test:
 # Run tests with coverage
 test-cov:
     uv run pytest --cov=src/immich_migrator --cov-report=html --cov-report=term
+
+# Generate test assets from base files
+generate-assets:
+    uv run python scripts/generate_test_assets.py
+
+# Verify test assets exist and have correct checksums
+verify-assets:
+    uv run python scripts/verify_test_assets.py
+
+# Verify assets, generate if needed, then run tests
+test-with-assets:
+    @just verify-assets || just generate-assets
+    uv run pytest
 
 # Run the full release pipeline locally
 all: clean check build verify test-install

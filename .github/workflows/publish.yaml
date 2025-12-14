@@ -59,6 +59,11 @@ jobs:
         with:
           subject-path: "dist/*"
 
+      - name: Sign artifacts with Sigstore
+        uses: sigstore/gh-action-sigstore-python@f514d46b907ebcd5bedc05145c03b69c1edd8b46 # v3.0.0
+        with:
+          inputs: ./dist/*
+
       - name: Publish to PyPI with trusted publishing
         run: uv publish
 
@@ -68,4 +73,5 @@ jobs:
           files: |
             dist/*.whl
             dist/*.tar.gz
+            dist/*.sigstore.bundle
             dist/SHA256SUMS

@@ -1,6 +1,39 @@
 # Test Assets Directory
 
-This directory contains 47 real test assets for comprehensive testing of the Immich Migrator tool.
+This directory contains 47 generated test assets for comprehensive testing of the Immich Migrator tool.
+
+## Asset Generation
+
+**Base files** (tracked in git):
+
+- `base_photo.jpg` - Stripped JPEG photo (no EXIF metadata)
+- `base_video.mov` - Stripped MOV video (no timestamps)
+- `base_live_photo.jpg` - Stripped live photo JPEG
+- `base_live_video.mov` - Stripped live photo MOV component
+- `base_sidecar.xmp` - XMP sidecar file template
+
+**Generated files** (created from base files, gitignored):
+
+- `P001-P004` - Photo variants
+- `V001-V004` - Video variants
+- `L001-L016` - Live photo pairs (32 files)
+- `E001-E006` - Edge cases (7 files)
+
+To generate/regenerate assets:
+
+```bash
+python scripts/generate_test_assets.py
+# or
+just generate-assets
+```
+
+To verify assets exist with correct checksums:
+
+```bash
+python scripts/verify_test_assets.py
+# or
+just verify-assets
+```
 
 ## Asset Categories
 
@@ -100,17 +133,24 @@ def test_asset_handling(case):
 
 ## Maintenance
 
-To regenerate assets or add new cases:
+To update the test asset generation:
 
-1. Download/create base assets
-2. Use `exiftool` to manipulate metadata
-3. Use `cp`/`mv` for extension manipulation
-4. Update `assets_matrix_template.yaml` with paths
-5. Verify all files with `ls -lh tests/assets/`
+1. Modify `scripts/generate_test_assets.py` with new logic
+2. Run `python scripts/generate_test_assets.py` to regenerate
+3. Update `scripts/verify_test_assets.py` with matching checksums
+4. Update `assets_matrix_template.yaml` with any new test cases
+5. Verify tests pass: `uv run pytest tests/`
+
+To add new base files:
+
+1. Add stripped versions (no EXIF/timestamps) to `tests/assets/base_*.ext`
+2. Update the generator script to use the new base file
+3. Commit the base file (generated files are gitignored)
 
 ## Notes
 
 - All paths in the YAML are relative to the project root: `tests/assets/filename`
-- Assets are real files, not mocks, ensuring tests catch real-world issues
+- Assets are generated files, not checked into git (except base files)
 - EXIF manipulation done with exiftool 12.76+
 - File extension mismatches intentionally test MIME-based normalization logic
+- CI workflow generates assets before running tests

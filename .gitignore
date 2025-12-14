@@ -59,6 +59,13 @@ logs/
 .immich-migrator/
 *.tmp
 
+# Generated test assets (keep only base_* files in git)
+tests/assets/P0*
+tests/assets/V0*
+tests/assets/L0*
+tests/assets/E0*
+tests/assets.backup/
+
 # Environment files (keep examples)
 *.env
 !*.env.example

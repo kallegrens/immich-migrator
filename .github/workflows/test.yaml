@@ -53,6 +53,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libimage-exiftool-perl
 
+      - name: Generate test assets
+        run: |
+          uv run python scripts/generate_test_assets.py
+
       - name: Run all tests with coverage
         run: |
           uv run pytest tests/ -v \
