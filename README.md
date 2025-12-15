@@ -32,7 +32,7 @@ This CLI tool downloads albums 📥, preserves EXIF metadata 📝, and uploads t
 > Use **uvx** to run the tool instantly without installation — perfect for one-time migrations:
 >
 > ```bash
-> uvx immich-migrator
+> uvx immich-migrator main
 > ```
 
 ### Install with uv (persistent)
@@ -100,13 +100,13 @@ NEW_IMMICH_API_KEY=your-new-server-api-key-here
 Run with the default credentials file (`~/.immich.env`):
 
 ```bash
-immich-migrator
+uv run immich-migrator main
 ```
 
 Or specify a custom credentials path:
 
 ```bash
-immich-migrator -c /path/to/your/credentials.env
+uv run immich-migrator main -c /path/to/your/credentials.env
 ```
 
 **What happens next?** 🎬
@@ -125,25 +125,25 @@ immich-migrator -c /path/to/your/credentials.env
 ### Basic Migration
 
 ```bash
-immich-migrator
+uv run immich-migrator main
 ```
 
 ### Custom Batch Size
 
 ```bash
-immich-migrator --batch-size 30
+uv run immich-migrator main --batch-size 30
 ```
 
 ### Custom Configuration
 
 ```bash
-immich-migrator --config config.toml
+uv run immich-migrator main --config config.toml
 ```
 
 ### Debug Mode
 
 ```bash
-immich-migrator --log-level DEBUG
+uv run immich-migrator main --log-level DEBUG
 ```
 
 ---
@@ -186,7 +186,7 @@ level = "INFO"
 
 - **Python**: 3.11, 3.12, 3.13
 - **Operating Systems**: Linux, macOS, Windows (WSL recommended)
-- **Immich**: Tested with Immich v1.x servers
+- **Immich**: Tested with Immich v1.119 – v2.x.x servers
 
 ---
 
