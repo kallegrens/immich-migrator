@@ -2,7 +2,7 @@ name: Publish to PyPI
 
 on:
   release:
-    types: [published]
+    types: [created]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -63,8 +63,14 @@ jobs:
           output-file: dist/sbom.spdx.json
           format: spdx-json
           upload-artifact: true
-          upload-release-assets: true
+          upload-release-assets: false
           dependency-snapshot: true
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3.0.0
+        with:
+          subject-path: "dist/*.whl"
+          sbom-path: "dist/sbom.spdx.json"
 
       - name: Generate build provenance attestations
         id: attest
@@ -90,8 +96,18 @@ jobs:
           files: |
             dist/*.whl
             dist/*.tar.gz
+            dist/sbom.spdx.json
+            dist/SHA256SUMS
+            LICENSE
           append_body: true
           body: |
+
+            ---
+
+            ## 📝 Release Notes
+
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/\
+            ${{ github.ref_name }}/CHANGELOG.md) for detailed release notes.
 
             ---
 
@@ -103,10 +119,44 @@ jobs:
 
             ### 🔐 Verification
 
-            Verify package integrity:
+            ![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)
+
+            This release achieves [SLSA Build Level 3](\
+            https://slsa.dev/spec/v1.0/levels) with cryptographic attestations.
+
+            #### Quick Verification (GitHub CLI)
             ```bash
-            # Verify build provenance attestation (requires GitHub CLI)
+            # Verify build provenance attestation
             gh attestation verify immich_migrator-*.whl --owner ${{ github.repository_owner }}
+
+            # Verify SBOM attestation
+            gh attestation verify immich_migrator-*.whl --owner ${{ github.repository_owner }} --sbom
             ```
 
-            See [SLSA build provenance](${{ steps.attest.outputs.attestation-url }}) for attestation details.
+            #### Manual Verification
+            ```bash
+            # Download checksums and wheel
+            wget https://github.com/${{ github.repository }}/releases/download/\
+            ${{ github.ref_name }}/SHA256SUMS
+            wget https://github.com/${{ github.repository }}/releases/download/\
+            ${{ github.ref_name }}/immich_migrator-*.whl
+
+            # Verify integrity
+            sha256sum -c SHA256SUMS
+            ```
+
+            📜 [View SLSA Provenance](\
+            ${{ steps.attest.outputs.attestation-url }})
+
+      - name: Publish Release
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: context.payload.release.id,
+              draft: false
+            });
+            core.info('✅ Release published and is now immutable');
