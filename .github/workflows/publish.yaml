@@ -101,14 +101,14 @@ jobs:
             LICENSE
           generate_release_notes: false
           append_body: true
+          # yamllint disable rule:line-length
           body: |
 
             ---
 
             ## 📝 Release Notes
 
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/\
-            ${{ github.ref_name }}/CHANGELOG.md) for detailed release notes.
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for detailed release notes.
 
             ---
 
@@ -122,8 +122,7 @@ jobs:
 
             ![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)
 
-            This release achieves [SLSA Build Level 3](\
-            https://slsa.dev/spec/v1.0/levels) with cryptographic attestations.
+            This release achieves [SLSA Build Level 3](https://slsa.dev/spec/v1.0/levels) with cryptographic attestations.
 
             #### Quick Verification (GitHub CLI)
             ```bash
@@ -137,14 +136,12 @@ jobs:
             #### Manual Verification
             ```bash
             # Download checksums and wheel
-            wget https://github.com/${{ github.repository }}/releases/download/\
-            ${{ github.ref_name }}/SHA256SUMS
-            wget https://github.com/${{ github.repository }}/releases/download/\
-            ${{ github.ref_name }}/immich_migrator-*.whl
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/SHA256SUMS
+            wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/immich_migrator-*.whl
 
             # Verify integrity
             sha256sum -c SHA256SUMS
             ```
 
-            📜 [View SLSA Provenance](\
-            ${{ steps.attest.outputs.attestation-url }})
+            📜 [View SLSA Provenance](${{ steps.attest.outputs.attestation-url }})
+          # yamllint enable rule:line-length
