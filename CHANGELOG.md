@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7](https://github.com/kallegrens/immich-migrator/compare/v0.3.6...v0.3.7) (2025-12-15)
+
+
+### Bug Fixes
+
+* **ci:** branch rules requires exact job name with pull_request suffix ([7a329d3](https://github.com/kallegrens/immich-migrator/commit/7a329d3da9e3ac2a413fd34060fecae177e6ace5))
+* **ci:** stop ci from running redundantly & add branch rulesets ([a9c1d22](https://github.com/kallegrens/immich-migrator/commit/a9c1d22a9d78f8cc1c2bf82f95cc77e4eb19427a))
+
+
+### Documentation
+
+* fix command to prefix uv and call main too ([d272ffa](https://github.com/kallegrens/immich-migrator/commit/d272ffac5ab0455b680f0c25d18627a8a8b2659b))
+
 ## [0.3.6](https://github.com/kallegrens/immich-migrator/compare/v0.3.5...v0.3.6) (2025-12-15)
 
 
