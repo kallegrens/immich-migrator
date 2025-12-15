@@ -1,9 +1,8 @@
 name: Publish to PyPI
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  release:
+    types: [published]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -100,7 +99,7 @@ jobs:
             dist/sbom.spdx.json
             dist/SHA256SUMS
             LICENSE
-          generate_release_notes: true
+          generate_release_notes: false
           append_body: true
           body: |
 

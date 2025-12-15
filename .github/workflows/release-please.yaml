@@ -28,13 +28,3 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: .github/release-please-config.json
           manifest-file: .github/.release-please-manifest.json
-
-      # These outputs will be used by the publish workflow
-      - name: Output release info
-        if: ${{ steps.release.outputs.release_created }}
-        run: |
-          echo "Release created: ${STEPS_RELEASE_OUTPUTS_TAG_NAME}"
-          echo "Upload URL: ${STEPS_RELEASE_OUTPUTS_UPLOAD_URL}"
-        env:
-          STEPS_RELEASE_OUTPUTS_TAG_NAME: ${{ steps.release.outputs.tag_name }}
-          STEPS_RELEASE_OUTPUTS_UPLOAD_URL: ${{ steps.release.outputs.upload_url }}

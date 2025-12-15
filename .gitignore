@@ -79,6 +79,7 @@ immich_failed_assets/
 
 # Agent markdown files
 PUBLICATION_SUMMARY.md
+README_IMPROVEMENTS.md
 
 # Zizmor
 *.sarif
