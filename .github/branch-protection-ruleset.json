@@ -22,42 +22,6 @@
             }
         },
         {
-            "type": "required_status_checks",
-            "parameters": {
-                "strict_required_status_checks_policy": false,
-                "required_status_checks": [
-                    {
-                        "context": "Build / Build Package (pull_request)",
-                        "integration_id": 15368
-                    },
-                    {
-                        "context": "Lint / Pre-commit Hooks (pull_request)",
-                        "integration_id": 15368
-                    },
-                    {
-                        "context": "Lint / Security Audit with zizmor (pull_request)",
-                        "integration_id": 15368
-                    },
-                    {
-                        "context": "Lint / GitHub Actions Syntax (pull_request)",
-                        "integration_id": 15368
-                    },
-                    {
-                        "context": "Test / Test (Python 3.11) (pull_request)",
-                        "integration_id": 15368
-                    },
-                    {
-                        "context": "Test / Test (Python 3.12) (pull_request)",
-                        "integration_id": 15368
-                    },
-                    {
-                        "context": "Test / Test (Python 3.13) (pull_request)",
-                        "integration_id": 15368
-                    }
-                ]
-            }
-        },
-        {
             "type": "deletion"
         },
         {

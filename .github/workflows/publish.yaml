@@ -1,8 +1,9 @@
 name: Publish to PyPI
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - "v*.*.*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -90,7 +91,7 @@ jobs:
             echo "build_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Upload artifacts to GitHub Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
           files: |
@@ -99,6 +100,7 @@ jobs:
             dist/sbom.spdx.json
             dist/SHA256SUMS
             LICENSE
+          generate_release_notes: true
           append_body: true
           body: |
 
@@ -147,16 +149,3 @@ jobs:
 
             📜 [View SLSA Provenance](\
             ${{ steps.attest.outputs.attestation-url }})
-
-      - name: Publish Release
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            await github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: context.payload.release.id,
-              draft: false
-            });
-            core.info('✅ Release published and is now immutable');
