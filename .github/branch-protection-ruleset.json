@@ -27,23 +27,31 @@
                 "strict_required_status_checks_policy": false,
                 "required_status_checks": [
                     {
-                        "context": "build / Build Package",
+                        "context": "Build / Build Package",
                         "integration_id": 15368
                     },
                     {
-                        "context": "pre-commit / Pre-commit Hooks",
+                        "context": "Lint / Pre-commit Hooks",
                         "integration_id": 15368
                     },
                     {
-                        "context": "test / Test (Python 3.11)",
+                        "context": "Lint / Security Audit with zizmor",
                         "integration_id": 15368
                     },
                     {
-                        "context": "test / Test (Python 3.12)",
+                        "context": "Lint / GitHub Actions Syntax",
                         "integration_id": 15368
                     },
                     {
-                        "context": "test / Test (Python 3.13)",
+                        "context": "Test / Test (Python 3.11)",
+                        "integration_id": 15368
+                    },
+                    {
+                        "context": "Test / Test (Python 3.12)",
+                        "integration_id": 15368
+                    },
+                    {
+                        "context": "Test / Test (Python 3.13)",
                         "integration_id": 15368
                     }
                 ]
