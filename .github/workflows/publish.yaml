@@ -34,7 +34,7 @@ jobs:
         uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # v7.1.5
         with:
           version: "latest"
-          enable-cache: false
+          enable-cache: false # avoids cache poisoning upon build and publish
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
@@ -72,11 +72,6 @@ jobs:
         with:
           subject-path: "dist/*"
 
-      - name: Sign artifacts with Sigstore
-        uses: sigstore/gh-action-sigstore-python@a5caf349bc536fbef3668a10ed7f5cd309a4b53d # v3.2.0
-        with:
-          inputs: ./dist/*
-
       - name: Publish to PyPI with trusted publishing
         run: uv publish
 
@@ -95,9 +90,10 @@ jobs:
           files: |
             dist/*.whl
             dist/*.tar.gz
-            dist/SHA256SUMS
           append_body: true
           body: |
+
+            ---
 
             ### 🔨 Build Information
             - **Python:** ${{ steps.build-meta.outputs.python_version }}
@@ -109,9 +105,6 @@ jobs:
 
             Verify package integrity:
             ```bash
-            # Verify checksums
-            sha256sum -c SHA256SUMS
-
             # Verify build provenance attestation (requires GitHub CLI)
             gh attestation verify immich_migrator-*.whl --owner ${{ github.repository_owner }}
             ```
