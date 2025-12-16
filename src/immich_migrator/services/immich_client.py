@@ -1,6 +1,7 @@
 """Immich API client with async HTTP operations."""
 
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -49,7 +50,7 @@ class ImmichClient:
             timeout=httpx.Timeout(self.timeout_seconds),
             follow_redirects=True,
         )
-        logger.info(f"Connected to Immich server: {self.server_url}")
+        logger.debug(f"Connected to Immich server: {self.server_url}")
         return self
 
     async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
@@ -98,7 +99,7 @@ class ImmichClient:
         Raises:
             httpx.HTTPError: On API errors
         """
-        logger.info("Fetching album list from Immich server")
+        logger.debug("Fetching album list from Immich server")
 
         response = await self._rate_limited_request("GET", "/albums")
         data = response.json()
@@ -114,7 +115,7 @@ class ImmichClient:
             )
             albums.append(album)
 
-        logger.info(f"Found {len(albums)} albums")
+        logger.debug(f"Found {len(albums)} albums")
         return albums
 
     @retry(  # type: ignore[untyped-decorator]
@@ -134,7 +135,7 @@ class ImmichClient:
         Raises:
             httpx.HTTPError: On API errors
         """
-        logger.info(f"Fetching assets for album {album_id}")
+        logger.debug(f"Fetching assets for album {album_id}")
 
         response = await self._rate_limited_request(
             "GET", f"/albums/{album_id}", params={"withoutAssets": False}
@@ -165,7 +166,7 @@ class ImmichClient:
 
         # Fetch live photo video assets (they're hidden and not in album list)
         if live_photo_video_ids:
-            logger.info(f"Fetching {len(live_photo_video_ids)} live photo videos")
+            logger.debug(f"Fetching {len(live_photo_video_ids)} live photo videos")
             video_assets = await self._fetch_live_photo_videos(live_photo_video_ids)
             assets.extend(video_assets)
 
@@ -178,7 +179,7 @@ class ImmichClient:
             shared=data.get("shared", False),
         )
 
-        logger.info(f"Loaded {len(assets)} assets for album '{album.album_name}'")
+        logger.debug(f"Loaded {len(assets)} assets for album '{album.album_name}'")
         return album
 
     async def _fetch_live_photo_videos(self, video_ids: list[str]) -> list[Asset]:
@@ -256,12 +257,18 @@ class ImmichClient:
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
     )
-    async def download_asset(self, asset: Asset, dest_path: Path) -> Path:
+    async def download_asset(
+        self,
+        asset: Asset,
+        dest_path: Path,
+        progress_callback: Callable[[int], None] | None = None,
+    ) -> Path:
         """Download asset to local file with streaming.
 
         Args:
             asset: Asset to download
             dest_path: Destination file path
+            progress_callback: Optional callback to report bytes downloaded
 
         Returns:
             Path to downloaded file
@@ -283,6 +290,8 @@ class ImmichClient:
                 with open(dest_path, "wb") as f:
                     async for chunk in response.aiter_bytes(chunk_size=8192):
                         f.write(chunk)
+                        if progress_callback:
+                            progress_callback(len(chunk))
 
         logger.debug(f"Downloaded {asset.original_file_name} to {dest_path}")
         return dest_path
@@ -305,7 +314,7 @@ class ImmichClient:
         Raises:
             httpx.HTTPError: On API errors
         """
-        logger.info("Searching for unalbummed assets")
+        logger.debug("Searching for unalbummed assets")
 
         all_assets = []
         live_photo_video_ids = []
@@ -350,9 +359,9 @@ class ImmichClient:
 
         # Fetch live photo video assets in parallel (they're hidden so not in search results)
         if live_photo_video_ids:
-            logger.info(f"Fetching {len(live_photo_video_ids)} live photo videos")
+            logger.debug(f"Fetching {len(live_photo_video_ids)} live photo videos")
             video_assets = await self._fetch_live_photo_videos(live_photo_video_ids)
             all_assets.extend(video_assets)
 
-        logger.info(f"Found {len(all_assets)} unalbummed assets")
+        logger.debug(f"Found {len(all_assets)} unalbummed assets")
         return all_assets

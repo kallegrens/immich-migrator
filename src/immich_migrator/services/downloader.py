@@ -70,7 +70,7 @@ class Downloader:
         """
         batch_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Starting batch download of {len(assets)} assets to {batch_dir}")
+        logger.debug(f"Starting batch download of {len(assets)} assets to {batch_dir}")
 
         # Pre-detect filename collisions to determine which assets need ID prefix
         filename_counts: dict[str, int] = {}
@@ -83,7 +83,7 @@ class Downloader:
 
         if any(needs_prefix.values()):
             collision_count = sum(1 for v in needs_prefix.values() if v)
-            logger.info(
+            logger.debug(
                 f"Detected {collision_count} assets with duplicate filenames, will add ID prefix"
             )
 
@@ -109,7 +109,7 @@ class Downloader:
             else:
                 successful_paths.append(result)
 
-        logger.info(
+        logger.debug(
             f"Batch download complete: {len(successful_paths)} successful, "
             f"{len(failed_asset_ids)} failed"
         )
@@ -146,14 +146,21 @@ class Downloader:
 
             for attempt in range(max_retries):
                 try:
-                    # Download asset
-                    await self.client.download_asset(asset, dest_path)
+                    # Create progress callback if context exists
+                    if progress_ctx:
+
+                        def progress_callback(bytes_downloaded: int) -> None:
+                            progress_ctx.update_download(bytes_downloaded)
+
+                        # Download asset with progress tracking
+                        await self.client.download_asset(asset, dest_path, progress_callback)
+                    else:
+                        # Download without progress tracking
+                        await self.client.download_asset(asset, dest_path)
 
                     # Verify checksum
                     if await self._verify_checksum(dest_path, asset.checksum):
                         logger.debug(f"✓ Downloaded and verified: {asset.original_file_name}")
-                        if progress_ctx:
-                            progress_ctx.update_batch(advance=1)
                         return dest_path
                     else:
                         logger.warning(
@@ -233,7 +240,7 @@ class Downloader:
                 if batch_dir.is_dir():
                     self.cleanup_batch(batch_dir)
 
-            logger.info(f"Cleaned up temp directory: {self.temp_dir}")
+            logger.debug(f"Cleaned up temp directory: {self.temp_dir}")
 
         except Exception as e:
             logger.warning(f"Failed to cleanup temp directory {self.temp_dir}: {e}")

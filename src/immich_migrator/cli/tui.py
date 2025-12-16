@@ -2,7 +2,6 @@
 
 import questionary
 from rich.console import Console
-from rich.table import Table
 
 from ..models.album import Album
 from ..models.state import MigrationState, MigrationStatus
@@ -41,9 +40,9 @@ async def select_album(albums: list[Album], state: MigrationState) -> Album | No
 
         # Progress info
         if album_state.migrated_count > 0:
-            progress = f"{album_state.migrated_count}/{album.asset_count}"
+            progress = f"{album_state.migrated_count}/{album_state.asset_count}"
         else:
-            progress = f"{album.asset_count} assets"
+            progress = f"{album_state.asset_count} assets"
 
         label = f"{icon} {album.album_name} ({progress}) - {album_state.status.value}"
         choices.append({"name": label, "value": album})
@@ -52,7 +51,7 @@ async def select_album(albums: list[Album], state: MigrationState) -> Album | No
     console.print(
         "\n[bold cyan]╭─────────────────────────────────────────────────────╮[/bold cyan]"
     )
-    console.print("[bold cyan]│ Select an album to migrate:                        │[/bold cyan]")
+    console.print("[bold cyan]│ Select an album to migrate:                         │[/bold cyan]")
     console.print(
         "[bold cyan]╰─────────────────────────────────────────────────────╯[/bold cyan]\n"
     )
@@ -105,35 +104,6 @@ async def select_album(albums: list[Album], state: MigrationState) -> Album | No
 
     except KeyboardInterrupt:
         return None
-
-
-def display_migration_summary(
-    album_name: str,
-    total: int,
-    migrated: int,
-    failed: int,
-    duration: float,
-) -> None:
-    """Display migration summary table.
-
-    Args:
-        album_name: Name of migrated album
-        total: Total assets in album
-        migrated: Successfully migrated count
-        failed: Failed asset count
-        duration: Migration duration in seconds
-    """
-    table = Table(title=f"\n✓ Migration Completed: {album_name}", show_header=True)
-
-    table.add_column("Metric", style="cyan")
-    table.add_column("Value", style="green")
-
-    table.add_row("Total Assets", str(total))
-    table.add_row("Migrated", str(migrated))
-    table.add_row("Failed", str(failed) if failed > 0 else "0")
-    table.add_row("Duration", f"{duration:.1f}s")
-
-    console.print(table)
 
 
 def display_error(message: str, details: str | None = None) -> None:

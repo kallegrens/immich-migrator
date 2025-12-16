@@ -6,10 +6,12 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.panel import Panel
 
 from immich_migrator import __version__
 
 from ..lib.logging import configure_logging, get_logger
+from ..lib.progress import ExifMetrics, LivePhotoMetrics, display_migration_summary
 from ..models.album import Album
 from ..models.asset import Asset
 from ..models.config import Config, ImmichCredentials
@@ -19,7 +21,7 @@ from ..services.exif_injector import ExifInjectionError, ExifInjector
 from ..services.immich_client import ImmichClient
 from ..services.state_manager import StateManager
 from ..services.uploader import Uploader
-from .tui import display_error, display_migration_summary, select_album
+from .tui import display_error, select_album
 
 app = typer.Typer(
     name="immich-migrator",
@@ -28,8 +30,8 @@ app = typer.Typer(
 console = Console()
 
 
-@app.command()
-def main(
+@app.command(name="migrate")
+def migrate_command(
     credentials: Path | None = typer.Option(
         None,
         "--credentials",
@@ -70,6 +72,12 @@ def main(
         "--log-level",
         help="Logging verbosity level",
     ),
+    quiet: bool = typer.Option(
+        False,
+        "--quiet",
+        "-q",
+        help="Suppress INFO logs to console, show only warnings/errors and progress bars",
+    ),
     verify_retries: int = typer.Option(
         2,
         "--verify-retries",
@@ -91,11 +99,16 @@ def main(
     """
     try:
         # Configure logging first
-        configure_logging(log_level=log_level)
+        configure_logging(log_level=log_level, quiet=quiet)
         logger = get_logger()  # type: ignore[no-untyped-call]
 
-        logger.info(f"🚀 Immich Migration Tool v{__version__}")
-        console.print(f"\n[bold cyan]🚀 Immich Migration Tool v{__version__}[/bold cyan]\n")
+        # Display welcome banner (only once, nicely formatted)
+        console.print(
+            Panel(
+                f"[bold cyan]🚀 Immich Migration Tool v{__version__}[/bold cyan]",
+                border_style="cyan",
+            )
+        )
 
         # Load configuration
         app_config = Config(
@@ -111,7 +124,7 @@ def main(
         logger.info(f"Configuration: batch_size={app_config.batch_size}")
 
         # Load server credentials
-        console.print("[bold]Loading credentials...[/bold]")
+        console.print("\n[bold]🔐 Loading credentials...[/bold]")
         # Default credentials file to check when no --credentials provided
         default_cred_path = Path.home() / ".immich.env"
 
@@ -127,10 +140,10 @@ def main(
 
             # Expect the unified env file to contain both OLD_IMMICH_* and NEW_IMMICH_* vars
             old_creds = ImmichCredentials.from_env_file(cred_path_to_use, prefix="OLD_IMMICH")
-            logger.info(f"Loaded old server credentials: {old_creds.server_url}")
+            logger.debug(f"Loaded old server credentials: {old_creds.server_url}")
 
             new_creds = ImmichCredentials.from_env_file(cred_path_to_use, prefix="NEW_IMMICH")
-            logger.info(f"Loaded new server credentials: {new_creds.server_url}")
+            logger.debug(f"Loaded new server credentials: {new_creds.server_url}")
         except (FileNotFoundError, KeyError) as e:
             console.print(f"[bold red]Error:[/bold red] {e}")
             logger.error(f"Failed to load credentials: {e}")
@@ -148,7 +161,7 @@ def main(
         )
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]Migration interrupted by user[/yellow]")
+        console.print("\n[yellow]⏸️  Migration interrupted by user[/yellow]")
         logger.info("Migration interrupted by Ctrl+C")
         raise typer.Exit(code=130)
     except Exception as e:
@@ -179,14 +192,14 @@ async def run_migration(
     state_manager = StateManager(config.state_file)
     migration_state = state_manager.load()
 
-    console.print("[bold]Connecting to Immich servers...[/bold]")
+    console.print("\n[bold]🌐 Connecting to Immich servers...[/bold]")
 
     async with ImmichClient(old_creds, config.max_concurrent_requests) as old_client:
         console.print(f"[green]✓[/green] Connected to old server: {old_creds.server_url}")
         console.print(f"[green]✓[/green] Connected to new server: {new_creds.server_url}")
 
         # Discover albums
-        console.print("\n[bold]Discovering albums...[/bold]")
+        console.print("\n[bold]📂 Discovering albums...[/bold]")
         albums = await old_client.list_albums()
 
         # Check for unalbummed assets
@@ -194,7 +207,7 @@ async def run_migration(
         if unalbummed_assets:
             virtual_album = Album.create_unalbummed_album(unalbummed_assets)
             albums.append(virtual_album)
-            logger.info(f"Created virtual album with {len(unalbummed_assets)} unalbummed assets")
+            logger.debug(f"Created virtual album with {len(unalbummed_assets)} unalbummed assets")
 
         console.print(f"Found [cyan]{len(albums)}[/cyan] albums\n")
 
@@ -249,6 +262,7 @@ async def migrate_album(
     state_manager: StateManager,
     verify_retries: int = 2,
     failed_output_dir: Path = Path("./immich_failed_assets"),
+    use_progress: bool = False,
 ) -> None:
     """Migrate a single album from old to new server.
 
@@ -261,6 +275,7 @@ async def migrate_album(
         state_manager: State persistence manager
         verify_retries: Number of retry attempts for missing assets
         failed_output_dir: Directory to save permanently failed assets
+        use_progress: If True, use rich progress bars instead of console.print
     """
     import time
 
@@ -341,6 +356,7 @@ async def migrate_album(
             "(includes live photo videos)"
         )
         album_state.asset_count = total_assets
+        album.asset_count = total_assets  # Keep Album model in sync
         state_manager.save(migration_state)
 
     # Collect live photo pairs for linking after upload
@@ -387,179 +403,204 @@ async def migrate_album(
     if start_index > 0:
         # Clamp display index to total_assets to avoid showing "2/1" etc.
         display_index = min(start_index + 1, total_assets)
-        console.print(f"[yellow]Resuming from asset {display_index}/{total_assets}[/yellow]\n")
+        console.print(f"[yellow]⏭️  Resuming from asset {display_index}/{total_assets}[/yellow]\n")
+
+    # Calculate total bytes for progress tracking
+    total_bytes = sum(
+        asset.file_size_bytes for asset in remaining_assets if asset.file_size_bytes is not None
+    )
 
     # Accumulate checksum overrides for assets modified by EXIF injection
     checksum_overrides = {}
 
-    # Process in batches
-    for batch_num, i in enumerate(
-        range(0, len(remaining_assets), batch_size), start=start_index // batch_size + 1
-    ):
-        batch_assets = remaining_assets[i : i + batch_size]
-        batch_dir = config.temp_dir / f"batch_{album.id}_{batch_num}"
+    # Track cumulative metrics
+    cumulative_exif = ExifMetrics()
+    # Initialize with total_pairs from discovered pairs (set once, not accumulated)
+    cumulative_live_photos = LivePhotoMetrics(total_pairs=len(live_photo_pairs))
 
-        console.print(f"[cyan]Batch {batch_num}:[/cyan] Downloading {len(batch_assets)} assets...")
+    # Display album header
+    console.print(f"\n[bold green]⬇️  Downloading:[/bold green] {album.album_name}")
+    console.print(f"[dim]Total size: {total_bytes / (1024**2):.1f} MB[/dim]\n")
 
-        # Download batch
-        try:
-            successful_paths, failed_ids = await downloader.download_batch(batch_assets, batch_dir)
+    # Create album-wide progress context
+    from ..lib.progress import ProgressContext
 
-            if failed_ids:
-                logger.warning(f"Failed to download {len(failed_ids)} assets in batch {batch_num}")
-                for asset_id in failed_ids:
-                    album_state.add_failed_asset(asset_id)
+    with ProgressContext() as progress:
+        # Start download progress bar with total bytes
+        if total_bytes > 0:
+            progress.start_download(total_bytes)
 
-            if not successful_paths:
-                console.print("[red]✗ No assets downloaded successfully, skipping upload[/red]")
+        # Process in batches
+        for batch_num, i in enumerate(
+            range(0, len(remaining_assets), batch_size), start=start_index // batch_size + 1
+        ):
+            batch_assets = remaining_assets[i : i + batch_size]
+            batch_dir = config.temp_dir / f"batch_{album.id}_{batch_num}"
+
+            # Download batch with progress tracking
+            try:
+                successful_paths, failed_ids = await downloader.download_batch(
+                    batch_assets, batch_dir, progress
+                )
+
+                if failed_ids:
+                    logger.warning(
+                        f"Failed to download {len(failed_ids)} assets in batch {batch_num}"
+                    )
+                    for asset_id in failed_ids:
+                        album_state.add_failed_asset(asset_id)
+
+                if not successful_paths:
+                    progress.console.print(
+                        "[red]✗ No assets downloaded successfully, skipping upload[/red]"
+                    )
+                    downloader.cleanup_batch(batch_dir)
+                    continue
+
+            except Exception as e:
+                logger.error(f"Batch download failed: {e}")
+                progress.console.print(f"[red]✗ Download failed: {e}[/red]")
                 downloader.cleanup_batch(batch_dir)
                 continue
 
-        except Exception as e:
-            logger.error(f"Batch download failed: {e}")
-            console.print(f"[red]✗ Download failed: {e}[/red]")
-            downloader.cleanup_batch(batch_dir)
-            continue
-
-        # Inject EXIF dates for assets missing date metadata
-        if exif_injector:
-            # Get the successfully downloaded assets
-            downloaded_assets = [asset for asset in batch_assets if asset.id not in failed_ids]
-            injected, skipped, failed, modified_ids, updated_paths, corrupted_ids = (
-                exif_injector.inject_dates_for_batch(downloaded_assets, successful_paths)
-            )
-            # Update successful_paths to reflect any file renames and normalize to absolute strings
-            successful_paths = [str(Path(p).absolute()) for p in updated_paths]  # type: ignore[misc]
-
-            if injected > 0:
-                console.print(
-                    f"[cyan]Batch {batch_num}:[/cyan] Injected dates for {injected} asset(s)"
+            # Inject EXIF dates for assets missing date metadata
+            if exif_injector:
+                # Get the successfully downloaded assets
+                downloaded_assets = [asset for asset in batch_assets if asset.id not in failed_ids]
+                exif_metrics, modified_ids, updated_paths, corrupted_ids = (
+                    exif_injector.inject_dates_for_batch(downloaded_assets, successful_paths)
                 )
-            if failed > 0:
-                console.print(
-                    f"[yellow]Batch {batch_num}:[/yellow] "
-                    f"Failed to inject dates for {failed} asset(s)"
-                )
+                # Update successful_paths to reflect any file renames and
+                # normalize to absolute strings
+                successful_paths = [str(Path(p).absolute()) for p in updated_paths]  # type: ignore[misc]
 
-            # Track corrupted files as permanently failed
-            if corrupted_ids:
-                # Prepare album-specific failed dir
-                safe_album_name = "".join(
-                    c if c.isalnum() or c in "._-" else "_" for c in album.album_name
-                ).strip()
-                album_failed_dir = failed_output_dir / safe_album_name
-                album_failed_dir.mkdir(parents=True, exist_ok=True)
+                # Update cumulative metrics
+                cumulative_exif += exif_metrics
 
-                for asset in downloaded_assets:
-                    if asset.id in corrupted_ids:
-                        # Determine the file path for this asset in updated_paths
-                        asset_idx = downloaded_assets.index(asset)
-                        local_moved_path = None
-                        original_abs_path = None
-                        if asset_idx < len(updated_paths):
-                            # Get absolute path of original file before moving
-                            original_abs_path = str(Path(updated_paths[asset_idx]).absolute())
-                            path_to_remove = Path(updated_paths[asset_idx])
-                            try:
-                                dest_path = album_failed_dir / path_to_remove.name
-                                # Use shutil.move to be robust across filesystems
-                                shutil.move(str(path_to_remove), str(dest_path))
-                                local_moved_path = str(dest_path.absolute())
-                                # Replace spaces with non-breaking spaces to avoid terminal wrapping
-                                nb_path = local_moved_path.replace(" ", "\u00a0")
-                                console.print(
-                                    f"[yellow]  → Moved corrupted file to: {nb_path}[/yellow]"
-                                )
-                            except Exception as e:
-                                # If move fails, fallback to leaving None but still record failure
-                                logger.warning(
-                                    f"Failed to move corrupted file {path_to_remove}: {e}"
-                                )
-                                local_moved_path = None
+                if exif_metrics.injected > 0:
+                    logger.debug(f"Injected dates for {exif_metrics.injected} asset(s)")
+                if exif_metrics.failed > 0:
+                    logger.warning(f"Failed to inject dates for {exif_metrics.failed} asset(s)")
 
-                        album_state.add_permanently_failed_asset(
-                            asset_id=asset.id,
-                            original_file_name=asset.original_file_name,
-                            checksum=asset.checksum,
-                            failure_reason=(
-                                "Corrupted file: EXIF injection failed with "
-                                "RIFF format error or truncated data"
-                            ),
-                            local_path=local_moved_path,
-                        )
+                # Track corrupted files as permanently failed
+                if corrupted_ids:
+                    # Prepare album-specific failed dir
+                    safe_album_name = "".join(
+                        c if c.isalnum() or c in "._-" else "_" for c in album.album_name
+                    ).strip()
+                    album_failed_dir = failed_output_dir / safe_album_name
+                    album_failed_dir.mkdir(parents=True, exist_ok=True)
 
-                        # Remove from successful paths using original absolute path
-                        if original_abs_path:
-                            successful_paths = [
-                                p
-                                for p in successful_paths
-                                if p != original_abs_path  # type: ignore[comparison-overlap]
-                            ]
-                console.print(
-                    f"[red]✗ {len(corrupted_ids)} corrupted file(s) excluded from upload[/red]"
-                )
+                    for asset in downloaded_assets:
+                        if asset.id in corrupted_ids:
+                            # Determine the file path for this asset in updated_paths
+                            asset_idx = downloaded_assets.index(asset)
+                            local_moved_path = None
+                            original_abs_path = None
+                            if asset_idx < len(updated_paths):
+                                # Get absolute path of original file before moving
+                                original_abs_path = str(Path(updated_paths[asset_idx]).absolute())
+                                path_to_remove = Path(updated_paths[asset_idx])
+                                try:
+                                    dest_path = album_failed_dir / path_to_remove.name
+                                    # Use shutil.move to be robust across filesystems
+                                    shutil.move(str(path_to_remove), str(dest_path))
+                                    local_moved_path = str(dest_path.absolute())
+                                    # Replace spaces with non-breaking spaces to
+                                    # avoid terminal wrapping
+                                    nb_path = local_moved_path.replace(" ", "\u00a0")
+                                    progress.console.print(
+                                        f"[yellow]→ Moved corrupted file to: {nb_path}[/yellow]"
+                                    )
+                                except Exception as e:
+                                    # If move fails, fallback to leaving None
+                                    # but still record failure
+                                    logger.warning(
+                                        f"Failed to move corrupted file {path_to_remove}: {e}"
+                                    )
+                                    local_moved_path = None
 
-            # Recompute checksums for modified files and add to accumulated overrides
-            if modified_ids:
-                logger.debug(f"Recomputing checksums for {len(modified_ids)} modified assets")
-                for asset, file_path in zip(downloaded_assets, updated_paths):
-                    if asset.id in modified_ids:
-                        new_checksum = compute_file_checksum(file_path)
-                        checksum_overrides[asset.id] = new_checksum
-                        logger.debug(
-                            f"Asset {asset.id}: checksum changed from "
-                            f"{asset.checksum[:8]}... to {new_checksum[:8]}..."
-                        )
+                            album_state.add_permanently_failed_asset(
+                                asset_id=asset.id,
+                                original_file_name=asset.original_file_name,
+                                checksum=asset.checksum,
+                                failure_reason=(
+                                    "Corrupted file: EXIF injection failed with "
+                                    "RIFF format error or truncated data"
+                                ),
+                                local_path=local_moved_path,
+                            )
 
-        # Upload batch (skip if no files remain after exclusions)
-        try:
-            if not successful_paths:
-                console.print(
-                    f"[yellow]Batch {batch_num}:[/yellow] "
-                    f"No files to upload (all excluded or failed)"
-                )
-            else:
-                console.print(
-                    f"[cyan]Batch {batch_num}:[/cyan] "
-                    f"Uploading {len(successful_paths)} file(s) via Immich CLI..."
-                )
-
-                try:
-                    upload_success = uploader.upload_batch(
-                        batch_dir,
-                        album_name=album.album_name if not album.is_virtual_unalbummed else None,
+                            # Remove from successful paths using original absolute path
+                            if original_abs_path:
+                                successful_paths = [
+                                    p
+                                    for p in successful_paths
+                                    if p != original_abs_path  # type: ignore[comparison-overlap]
+                                ]
+                    progress.console.print(
+                        f"[red]✗ {len(corrupted_ids)} corrupted file(s) excluded from upload[/red]"
                     )
 
-                    if upload_success:
-                        console.print(f"[green]✓ Batch {batch_num} uploaded successfully[/green]")
-                        album_state.increment_migrated(len(successful_paths))
-                        state_manager.save(migration_state)
+                # Recompute checksums for modified files and add to accumulated overrides
+                if modified_ids:
+                    logger.debug(f"Recomputing checksums for {len(modified_ids)} modified assets")
+                    for asset, file_path in zip(downloaded_assets, updated_paths):
+                        if asset.id in modified_ids:
+                            new_checksum = compute_file_checksum(file_path)
+                            checksum_overrides[asset.id] = new_checksum
+                            logger.debug(
+                                f"Asset {asset.id}: checksum changed from "
+                                f"{asset.checksum[:8]}... to {new_checksum[:8]}..."
+                            )
 
-                        # Link any live photo pairs that are now ready
-                        unlinked_pairs = album_state.get_unlinked_live_photos()
-                        if unlinked_pairs:
-                            linked_ids = uploader.link_ready_live_photos(unlinked_pairs)
-                            for image_id in linked_ids:
-                                album_state.mark_live_photo_linked(image_id)
-                            if linked_ids:
-                                console.print(
-                                    f"[green]✓ Linked {len(linked_ids)} live photo pair(s)[/green]"
+            # Upload batch (skip if no files remain after exclusions)
+            try:
+                if not successful_paths:
+                    logger.warning("No files to upload (all excluded or failed)")
+                else:
+                    logger.debug(f"Uploading {len(successful_paths)} file(s) via Immich CLI")
+
+                    try:
+                        upload_success = uploader.upload_batch(
+                            batch_dir,
+                            album_name=album.album_name
+                            if not album.is_virtual_unalbummed
+                            else None,
+                        )
+
+                        if upload_success:
+                            logger.debug(f"Batch {batch_num} uploaded successfully")
+                            album_state.increment_migrated(len(successful_paths))
+                            state_manager.save(migration_state)
+
+                            # Link any live photo pairs that are now ready
+                            unlinked_pairs = album_state.get_unlinked_live_photos()
+                            if unlinked_pairs:
+                                linked_ids, live_metrics = uploader.link_ready_live_photos(
+                                    unlinked_pairs
                                 )
-                                state_manager.save(migration_state)
-                    else:
-                        console.print(f"[red]✗ Batch {batch_num} upload failed[/red]")
+                                cumulative_live_photos += live_metrics
 
-                except Exception as e:
-                    logger.error(f"Batch upload failed: {e}")
-                    console.print(f"[red]✗ Upload failed: {e}[/red]")
+                                for image_id in linked_ids:
+                                    album_state.mark_live_photo_linked(image_id)
+                                if linked_ids:
+                                    logger.debug(f"Linked {len(linked_ids)} live photo pair(s)")
+                                    state_manager.save(migration_state)
+                        else:
+                            logger.error(f"Batch {batch_num} upload failed")
 
-        finally:
-            # Cleanup batch
-            downloader.cleanup_batch(batch_dir)
+                    except Exception as e:
+                        logger.error(f"Batch upload failed: {e}")
+                        progress.console.print(f"[red]✗ Upload failed: {e}[/red]")
+
+            finally:
+                # Cleanup batch
+                downloader.cleanup_batch(batch_dir)
 
     # === VERIFICATION PHASE ===
     # After all batches uploaded, verify assets exist on target and retry missing ones
-    console.print("\n[bold cyan]Verifying uploaded assets...[/bold cyan]")
+    console.print("\n[bold cyan]🔍 Verifying uploaded assets...[/bold cyan]")
 
     await verify_and_retry_missing_assets(
         album=album,
@@ -583,28 +624,22 @@ async def migrate_album(
 
     if total_verified >= album.asset_count:
         album_state.mark_completed()
-        console.print("\n[bold green]✓ Migration completed![/bold green]")
     elif total_verified > 0:
         if total_failed > 0 or total_download_failed > 0:
             console.print(
-                f"\n[yellow]⚠ Partial migration: "
+                f"\n[yellow]⚠️  Partial migration: "
                 f"{total_verified}/{album.asset_count} verified, "
                 f"{total_failed} permanently failed, "
                 f"{total_download_failed} download failures[/yellow]"
             )
-        else:
-            console.print(
-                f"\n[yellow]⚠ Partial migration: "
-                f"{total_verified}/{album.asset_count} completed[/yellow]"
-            )
     else:
         album_state.mark_failed("No assets migrated successfully")
-        console.print("\n[red]✗ Migration failed[/red]")
+        console.print("\n[red]❌ Migration failed - no assets migrated successfully[/red]")
 
     # Save final state
     state_manager.save(migration_state)
 
-    # Display summary
+    # Display comprehensive summary
     duration = time.time() - start_time
     display_migration_summary(
         album_name=album.album_name,
@@ -612,6 +647,8 @@ async def migrate_album(
         migrated=total_verified,
         failed=total_failed + total_download_failed,
         duration=duration,
+        exif_metrics=cumulative_exif,
+        live_photo_metrics=cumulative_live_photos,
     )
 
 
@@ -737,15 +774,15 @@ async def verify_and_retry_missing_assets(
                 # EXIF injection
                 if exif_injector:
                     downloaded_assets = [a for a in missing_assets if a.id not in failed_ids]
-                    injected, _, exif_failed, modified_ids, updated_paths, corrupted_ids = (
+                    exif_metrics, modified_ids, updated_paths, corrupted_ids = (
                         exif_injector.inject_dates_for_batch(downloaded_assets, successful_paths)
                     )
                     # Update successful_paths to reflect any file renames and normalize to
                     # absolute strings
                     successful_paths = [str(Path(p).absolute()) for p in updated_paths]  # type: ignore[misc]
 
-                    if injected > 0:
-                        console.print(f"  Injected EXIF dates for {injected} asset(s)")
+                    if exif_metrics.injected > 0:
+                        console.print(f"  Injected EXIF dates for {exif_metrics.injected} asset(s)")
 
                     # Track corrupted files as permanently failed and move them out
                     if corrupted_ids:
@@ -827,7 +864,7 @@ async def verify_and_retry_missing_assets(
                         # Link live photos for retried assets
                         unlinked_pairs = album_state.get_unlinked_live_photos()
                         if unlinked_pairs:
-                            linked_ids = uploader.link_ready_live_photos(unlinked_pairs)
+                            linked_ids, _ = uploader.link_ready_live_photos(unlinked_pairs)
                             for image_id in linked_ids:
                                 album_state.mark_live_photo_linked(image_id)
                             if linked_ids:
