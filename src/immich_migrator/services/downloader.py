@@ -2,10 +2,10 @@
 
 import asyncio
 import hashlib
+from collections.abc import Callable
 from pathlib import Path
 
 from ..lib.logging import get_logger
-from ..lib.progress import ProgressContext
 from ..models.asset import Asset
 from ..services.immich_client import ImmichClient
 
@@ -56,14 +56,14 @@ class Downloader:
         self,
         assets: list[Asset],
         batch_dir: Path,
-        progress_ctx: ProgressContext | None = None,
+        on_progress: Callable[[int], None] | None = None,
     ) -> tuple[list[Path], list[str]]:
         """Download a batch of assets concurrently.
 
         Args:
             assets: List of assets to download
             batch_dir: Directory to save downloads
-            progress_ctx: Optional progress context for tracking
+            on_progress: Optional callback for progress updates (bytes downloaded)
 
         Returns:
             Tuple of (successful_paths, failed_asset_ids)
@@ -93,7 +93,7 @@ class Downloader:
         # Create tasks for concurrent downloads
         tasks = []
         for asset in assets:
-            task = self._download_with_retry(asset, batch_dir, progress_ctx, needs_prefix[asset.id])
+            task = self._download_with_retry(asset, batch_dir, needs_prefix[asset.id], on_progress)
             tasks.append(task)
 
         # Execute downloads concurrently
@@ -120,8 +120,8 @@ class Downloader:
         self,
         asset: Asset,
         batch_dir: Path,
-        progress_ctx: ProgressContext | None,
         needs_prefix: bool = False,
+        on_progress: Callable[[int], None] | None = None,
         max_retries: int = 3,
     ) -> Path | None:
         """Download single asset with retry logic.
@@ -129,8 +129,8 @@ class Downloader:
         Args:
             asset: Asset to download
             batch_dir: Directory to save download
-            progress_ctx: Optional progress context
             needs_prefix: Whether to add ID prefix to avoid collision
+            on_progress: Optional callback for progress updates
             max_retries: Maximum retry attempts
 
         Returns:
@@ -146,21 +146,15 @@ class Downloader:
 
             for attempt in range(max_retries):
                 try:
-                    # Create progress callback if context exists
-                    if progress_ctx:
-
-                        def progress_callback(bytes_downloaded: int) -> None:
-                            progress_ctx.update_download(bytes_downloaded)
-
-                        # Download asset with progress tracking
-                        await self.client.download_asset(asset, dest_path, progress_callback)
-                    else:
-                        # Download without progress tracking
-                        await self.client.download_asset(asset, dest_path)
+                    # Download asset
+                    await self.client.download_asset(asset, dest_path)
 
                     # Verify checksum
                     if await self._verify_checksum(dest_path, asset.checksum):
                         logger.debug(f"✓ Downloaded and verified: {asset.original_file_name}")
+                        # Report progress after successful download
+                        if on_progress and asset.file_size_bytes:
+                            on_progress(asset.file_size_bytes)
                         return dest_path
                     else:
                         logger.warning(

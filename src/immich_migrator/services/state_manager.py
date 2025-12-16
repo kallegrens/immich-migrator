@@ -36,7 +36,7 @@ class StateManager:
                 data = json.load(f)
 
             state = MigrationState.model_validate(data)
-            logger.info(
+            logger.debug(
                 f"Loaded state from {self.state_file}: "
                 f"{len(state.albums)} albums, "
                 f"{state.get_completed_count()} completed"

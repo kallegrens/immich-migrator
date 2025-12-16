@@ -121,7 +121,9 @@ def migrate_command(
         if temp_dir:
             app_config.temp_dir = temp_dir
 
-        logger.info(f"Configuration: batch_size={app_config.batch_size}")
+        # Only log configuration if non-default
+        if app_config.batch_size != 20:
+            logger.info(f"Configuration: batch_size={app_config.batch_size}")
 
         # Load server credentials
         console.print("\n[bold]🔐 Loading credentials...[/bold]")
@@ -419,16 +421,22 @@ async def migrate_album(
     cumulative_live_photos = LivePhotoMetrics(total_pairs=len(live_photo_pairs))
 
     # Display album header
-    console.print(f"\n[bold green]⬇️  Downloading:[/bold green] {album.album_name}")
-    console.print(f"[dim]Total size: {total_bytes / (1024**2):.1f} MB[/dim]\n")
+    console.print(f"\n[bold green]📦 Migrating:[/bold green] {album.album_name}")
+    console.print(
+        f"[dim]{len(remaining_assets)} assets • {total_bytes / (1024**2):.1f} MB "
+        f"(~{total_bytes * 2 / (1024**2):.1f} MB total with upload)[/dim]\n"
+    )
 
     # Create album-wide progress context
     from ..lib.progress import ProgressContext
 
     with ProgressContext() as progress:
-        # Start download progress bar with total bytes
-        if total_bytes > 0:
-            progress.start_download(total_bytes)
+        # Start overall progress bar tracking download + upload bytes
+        progress.start_overall(
+            "Migrating",
+            total_bytes=total_bytes * 2,
+            total_assets=len(remaining_assets),
+        )
 
         # Process in batches
         for batch_num, i in enumerate(
@@ -440,7 +448,7 @@ async def migrate_album(
             # Download batch with progress tracking
             try:
                 successful_paths, failed_ids = await downloader.download_batch(
-                    batch_assets, batch_dir, progress
+                    batch_assets, batch_dir, on_progress=progress.update_progress
                 )
 
                 if failed_ids:
@@ -572,6 +580,15 @@ async def migrate_album(
                         if upload_success:
                             logger.debug(f"Batch {batch_num} uploaded successfully")
                             album_state.increment_migrated(len(successful_paths))
+                            # Update overall progress (count upload bytes and assets)
+                            uploaded_bytes = sum(
+                                asset.file_size_bytes or 0
+                                for asset in batch_assets
+                                if asset.id not in failed_ids
+                            )
+                            progress.update_progress(uploaded_bytes)
+                            # Update asset count display
+                            progress.update_assets(album_state.migrated_count)
                             state_manager.save(migration_state)
 
                             # Link any live photo pairs that are now ready
