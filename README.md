@@ -22,7 +22,20 @@
 
 Migrate your photo library between **Immich** servers with confidence.
 
-This CLI tool downloads albums 📥, preserves EXIF metadata 📝, and uploads to your new server 📤 — all with **interactive selection 🎯, progress tracking 📊, and state persistence 💾** for reliable migrations.
+---
+
+## ✨ Features
+
+- 🎯 **Interactive Album Selection**: TUI for choosing albums to migrate
+- 📦 **Batch Processing**: Downloads and uploads in configurable batches
+- 📊 **Progress Tracking**: Real-time progress bars for downloads and uploads
+- 💾 **State Persistence**: Resume interrupted migrations seamlessly (state saved to `~/.immich-migrator/state.json`)
+- ✅ **Checksum Verification**: SHA1 verification for data integrity with configurable retry attempts
+- 🔄 **Error Handling**: Graceful recovery from network failures with retry logic
+- 📷 **Unalbummed Assets**: Migrate photos not organized in albums (presented as virtual album in selection)
+- 📝 **EXIF Preservation**: Maintains all photo metadata; original capture dates are injected into downloaded files before upload
+- 📸 **Live Photo Support**: Automatically detects and links iPhone Live Photos (image + video pairs)
+- 🗂️ **Failed Assets Recovery**: Assets that fail verification are saved to `./immich_failed_assets` (configurable) for manual review
 
 ---
 
@@ -32,7 +45,7 @@ This CLI tool downloads albums 📥, preserves EXIF metadata 📝, and uploads t
 > Use **uvx** to run the tool instantly without installation — perfect for one-time migrations:
 >
 > ```bash
-> uvx immich-migrator main
+> uvx immich-migrator migrate
 > ```
 
 ### Install with uv (persistent)
@@ -64,7 +77,7 @@ uv sync
 Before you begin, ensure you have:
 
 - **Python**: 3.11 or higher ✅
-- **Disk Space**: At least 5GB free for temporary storage 💾
+- **Disk Space**: At least 5GB free for temporary storage of downloaded batches 💾
 - **ExifTool**: For EXIF metadata handling 📝
 
   ```bash
@@ -100,13 +113,13 @@ NEW_IMMICH_API_KEY=your-new-server-api-key-here
 Run with the default credentials file (`~/.immich.env`):
 
 ```bash
-uv run immich-migrator main
+uv run immich-migrator migrate
 ```
 
 Or specify a custom credentials path:
 
 ```bash
-uv run immich-migrator main -c /path/to/your/credentials.env
+uv run immich-migrator migrate -c /path/to/your/credentials.env
 ```
 
 **What happens next?** 🎬
@@ -122,63 +135,88 @@ uv run immich-migrator main -c /path/to/your/credentials.env
 
 ## 🎯 Usage Examples
 
+### View Available Commands
+
+```bash
+immich-migrator --help
+immich-migrator migrate --help
+```
+
 ### Basic Migration
 
 ```bash
-uv run immich-migrator main
+immich-migrator migrate
 ```
 
 ### Custom Batch Size
 
 ```bash
-uv run immich-migrator main --batch-size 30
+immich-migrator migrate --batch-size 30
 ```
 
 ### Custom Configuration
 
 ```bash
-uv run immich-migrator main --config config.toml
+immich-migrator migrate --config config.toml
 ```
 
 ### Debug Mode
 
 ```bash
-uv run immich-migrator main --log-level DEBUG
+immich-migrator migrate --log-level DEBUG
+```
+
+### Quiet Mode (Warnings/Errors Only)
+
+```bash
+immich-migrator migrate --quiet
+```
+
+### Custom Failed Assets Directory
+
+```bash
+immich-migrator migrate --failed-output-dir /path/to/failed/assets
+```
+
+### Adjust Verification Retries
+
+```bash
+immich-migrator migrate --verify-retries 5
 ```
 
 ---
 
 ## ⚙️ Configuration
 
-Create a `config.toml` file for advanced configuration:
+Create a `config.toml` file for advanced configuration. All settings are optional and have sensible defaults.
+
+### Available Configuration Options
 
 ```toml
-[migration]
-batch_size = 25
-max_concurrent_downloads = 5
-rate_limit_rps = 10.0
-download_timeout_seconds = 300
+# Batch processing
+batch_size = 20                      # Assets per batch (1-100, default: 20)
 
-[storage]
-state_file = "~/.immich-migrator/state.json"
-temp_dir = "~/.immich-migrator/temp"
+# Performance tuning
+max_concurrent_downloads = 5         # Parallel downloads (1-20, default: 5)
+max_concurrent_requests = 50         # Parallel API requests (1-200, default: 50)
+download_timeout_seconds = 300       # Download timeout in seconds (default: 300)
 
-[logging]
-level = "INFO"
+# Storage locations
+state_file = "~/.immich-migrator/state.json"  # Migration state persistence
+temp_dir = "~/.immich-migrator/temp"          # Temporary download directory
+
+# Logging
+log_level = "INFO"                   # DEBUG | INFO | WARNING | ERROR (default: INFO)
 ```
 
----
+### Using Configuration File
 
-## ✨ Features
+```bash
+immich-migrator migrate --config /path/to/config.toml
+```
 
-- 🎯 **Interactive Album Selection**: TUI for choosing albums to migrate
-- 📦 **Batch Processing**: Downloads and uploads in configurable batches
-- 📊 **Progress Tracking**: Real-time progress bars for downloads and uploads
-- 💾 **State Persistence**: Resume interrupted migrations seamlessly
-- ✅ **Checksum Verification**: SHA1 verification for data integrity
-- 🔄 **Error Handling**: Graceful recovery from network failures with retry logic
-- 📷 **Unalbummed Assets**: Migrate photos not organized in albums
-- 📝 **EXIF Preservation**: Maintains all photo metadata through the migration
+> [!NOTE]
+> CLI flags take precedence over config file settings. For example, `--batch-size 30` overrides the config file value.
 
 ---
 

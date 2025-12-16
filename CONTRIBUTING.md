@@ -6,9 +6,9 @@ Thank you for your interest in contributing to immich-migrator! This document pr
 
 ### Prerequisites
 
-- Python 3.12 or higher
+- Python 3.11 or higher
 - [uv](https://github.com/astral-sh/uv) package manager
-- Git
+- git
 - exiftool (`libimage-exiftool-perl` on Ubuntu/Debian)
 
 ### Getting Started
@@ -113,7 +113,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 Examples:
 
-```
+```text
 feat: add support for video migration
 fix: handle missing EXIF data gracefully
 docs: update installation instructions
@@ -160,7 +160,7 @@ docs: update installation instructions
 
 ## Project Structure
 
-```
+```text
 immich-migrator/
 ├── src/immich_migrator/
 │   ├── cli/           # CLI interface and TUI
