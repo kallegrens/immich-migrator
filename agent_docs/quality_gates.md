@@ -2,6 +2,12 @@
 
 When to run tests, how to use linters, and what must pass before committing.
 
+## Prerequisites
+
+- **Python**: 3.11 or higher
+- **uv**: Package manager (always use `uv run` prefix)
+- **exiftool**: For EXIF metadata handling
+
 ## The Golden Rule
 
 ⚠️ **Changes to `src/immich_migrator/` MUST pass `uv run just check` before commit.**

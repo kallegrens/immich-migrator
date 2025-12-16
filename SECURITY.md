@@ -6,7 +6,10 @@ We release patches for security vulnerabilities for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
+| 0.x.x   | :white_check_mark: |
+
+> [!NOTE]
+> This project is currently pre-1.0. Security patches are provided for the latest 0.x release.
 
 ## Reporting a Vulnerability
 
