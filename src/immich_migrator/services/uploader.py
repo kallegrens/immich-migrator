@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 
 from ..lib.logging import get_logger
+from ..lib.progress import LivePhotoMetrics
 from ..models.asset import Asset
 from ..models.state import LivePhotoPair
 
@@ -33,7 +34,7 @@ class Uploader:
         if not self._check_immich_cli():
             raise RuntimeError("Immich CLI not found. Please install: npm install -g @immich/cli")
 
-        logger.info("Immich CLI detected and ready")
+        logger.debug("Immich CLI detected and ready")
 
     def _check_immich_cli(self) -> bool:
         """Check if Immich CLI is installed and available.
@@ -70,7 +71,7 @@ class Uploader:
             logger.error(f"Batch directory does not exist: {batch_dir}")
             return False
 
-        logger.info(f"Uploading batch from {batch_dir} to {self.server_url}")
+        logger.debug(f"Uploading batch from {batch_dir} to {self.server_url}")
 
         # Prepare environment variables for Immich CLI
         env = os.environ.copy()
@@ -94,7 +95,7 @@ class Uploader:
             )
 
             if result.returncode == 0:
-                logger.info("Batch uploaded successfully")
+                logger.debug("Batch uploaded successfully")
                 logger.debug(f"Upload output: {result.stdout}")
                 return True
             else:
@@ -130,7 +131,7 @@ class Uploader:
             )
 
             if result.returncode == 0:
-                logger.info("✓ Immich CLI connection test successful")
+                logger.debug("✓ Immich CLI connection test successful")
                 return True
             else:
                 logger.error(f"Immich CLI connection test failed: {result.stderr}")
@@ -158,7 +159,7 @@ class Uploader:
         if not live_photo_pairs:
             return 0, 0
 
-        logger.info(f"Linking {len(live_photo_pairs)} live photo pairs")
+        logger.debug(f"Linking {len(live_photo_pairs)} live photo pairs")
         successful = 0
         failed = 0
 
@@ -196,7 +197,7 @@ class Uploader:
                 logger.error(f"Failed to link live photo {image_asset.original_file_name}: {e}")
                 failed += 1
 
-        logger.info(f"Live photo linking complete: {successful} linked, {failed} failed")
+        logger.debug(f"Live photo linking complete: {successful} linked, {failed} failed")
         return successful, failed
 
     def verify_assets_exist(
@@ -224,7 +225,7 @@ class Uploader:
             return [], []
 
         checksum_overrides = checksum_overrides or {}
-        logger.info(f"Verifying {len(assets)} assets exist on destination server")
+        logger.debug(f"Verifying {len(assets)} assets exist on destination server")
 
         # Build checksum -> asset mapping, using overrides where available
         checksum_to_asset = {}
@@ -247,7 +248,7 @@ class Uploader:
             else:
                 missing_ids.append(asset.id)
 
-        logger.info(
+        logger.debug(
             f"Verification complete: {len(verified_ids)} verified, {len(missing_ids)} missing"
         )
 
@@ -330,7 +331,7 @@ class Uploader:
     def link_ready_live_photos(
         self,
         unlinked_pairs: list[LivePhotoPair],
-    ) -> list[str]:
+    ) -> tuple[list[str], LivePhotoMetrics]:
         """Link live photo pairs where both components exist on destination.
 
         Checks each unlinked pair to see if both image and video have been
@@ -340,12 +341,16 @@ class Uploader:
             unlinked_pairs: List of LivePhotoPair from state that haven't been linked
 
         Returns:
-            List of image_asset_ids that were successfully linked
+            Tuple of (linked_image_ids, metrics)
+            - linked_image_ids: List of image_asset_ids that were successfully linked
+            - metrics: LivePhotoMetrics with detailed statistics
         """
-        if not unlinked_pairs:
-            return []
+        metrics = LivePhotoMetrics(total_pairs=len(unlinked_pairs))
 
-        logger.info(f"Checking {len(unlinked_pairs)} unlinked live photo pair(s) for linking")
+        if not unlinked_pairs:
+            return [], metrics
+
+        logger.debug(f"Checking {len(unlinked_pairs)} unlinked live photo pair(s) for linking")
 
         # Collect all checksums we need to look up
         checksums_to_check = set()
@@ -355,29 +360,25 @@ class Uploader:
 
         # Batch lookup all checksums
         checksum_to_asset_id = self._find_assets_by_checksums(list(checksums_to_check))
-        logger.info(f"Found {len(checksum_to_asset_id)} asset(s) on destination by checksum")
+        logger.debug(f"Found {len(checksum_to_asset_id)} asset(s) on destination by checksum")
 
-        # Debug: analyze which components are missing
-        images_found = 0
-        videos_found = 0
-        both_found = 0
-        neither_found = 0
+        # Analyze which components are found
         for pair in unlinked_pairs:
             has_image = pair.image_checksum in checksum_to_asset_id
             has_video = pair.video_checksum in checksum_to_asset_id
             if has_image:
-                images_found += 1
+                metrics.found_images += 1
             if has_video:
-                videos_found += 1
+                metrics.found_videos += 1
             if has_image and has_video:
-                both_found += 1
-            elif not has_image and not has_video:
-                neither_found += 1
+                metrics.ready_pairs += 1
 
-        logger.info(
-            f"Live photo component analysis: {images_found} images found, "
-            f"{videos_found} videos found, {both_found} pairs with both, "
-            f"{neither_found} pairs with neither"
+        metrics.pending = len(unlinked_pairs) - metrics.ready_pairs
+
+        logger.debug(
+            f"Live photo component analysis: {metrics.found_images} images found, "
+            f"{metrics.found_videos} videos found, {metrics.ready_pairs} pairs with both, "
+            f"{metrics.pending} pairs with neither"
         )
 
         # Log sample checksums for debugging format issues
@@ -393,7 +394,6 @@ class Uploader:
 
         # Link pairs where both components are found
         linked_image_ids = []
-        pairs_ready = 0
         for pair in unlinked_pairs:
             dest_image_id = checksum_to_asset_id.get(pair.image_checksum)
             dest_video_id = checksum_to_asset_id.get(pair.video_checksum)
@@ -402,7 +402,6 @@ class Uploader:
                 # One or both components not yet uploaded, skip
                 continue
 
-            pairs_ready += 1
             # Both exist, attempt to link
             if self._link_live_photo_pair(dest_image_id, dest_video_id):
                 logger.debug(
@@ -410,15 +409,16 @@ class Uploader:
                     f"video={pair.video_asset_id}"
                 )
                 linked_image_ids.append(pair.image_asset_id)
+                metrics.linked += 1
             else:
                 logger.warning(f"Failed to link live photo pair: image={pair.image_asset_id}")
 
-        logger.info(
-            f"Live photo linking: {pairs_ready} pair(s) ready, "
-            f"{len(linked_image_ids)} linked successfully"
+        logger.debug(
+            f"Live photo linking: {metrics.ready_pairs} pair(s) ready, "
+            f"{metrics.linked} linked successfully"
         )
 
-        return linked_image_ids
+        return linked_image_ids, metrics
 
     def _link_live_photo_pair(self, image_id: str, video_id: str) -> bool:
         """Link a live photo image to its video on destination server.

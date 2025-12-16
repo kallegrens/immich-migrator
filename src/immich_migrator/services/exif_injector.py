@@ -7,6 +7,7 @@ from enum import Enum
 from pathlib import Path
 
 from ..lib.logging import get_logger
+from ..lib.progress import ExifMetrics
 from ..models.asset import Asset
 
 logger = get_logger()  # type: ignore[no-untyped-call]
@@ -548,7 +549,7 @@ class ExifInjector:
 
     def inject_dates_for_batch(
         self, assets: list[Asset], downloaded_paths: list[Path]
-    ) -> tuple[int, int, int, set[str], list[Path], set[str]]:
+    ) -> tuple[ExifMetrics, set[str], list[Path], set[str]]:
         """Inject date metadata for downloaded assets that need it.
 
         Processes each file individually - failures are logged but do not abort the batch.
@@ -559,8 +560,8 @@ class ExifInjector:
             downloaded_paths: Corresponding list of file paths
 
         Returns:
-            Tuple of (injected_count, skipped_count, failed_count, modified_asset_ids,
-            updated_paths, corrupted_asset_ids) where:
+            Tuple of (metrics, modified_asset_ids, updated_paths, corrupted_asset_ids) where:
+            - metrics: ExifMetrics with injected/skipped/failed counts
             - modified_asset_ids is a set of asset IDs that had EXIF data injected
             - updated_paths is the list of file paths after any renames (same order as input)
             - corrupted_asset_ids is a set of asset IDs that failed due to file corruption
@@ -570,9 +571,7 @@ class ExifInjector:
                 f"Asset count ({len(assets)}) doesn't match path count ({len(downloaded_paths)})"
             )
 
-        injected_count = 0
-        skipped_count = 0
-        failed_count = 0
+        metrics = ExifMetrics()
         modified_asset_ids = set()
         updated_paths = []
         corrupted_asset_ids = set()
@@ -583,7 +582,7 @@ class ExifInjector:
                 # Check if file already has date metadata
                 if self._has_date_metadata(current_path):
                     logger.debug(f"Skipping {current_path.name}: has existing date metadata")
-                    skipped_count += 1
+                    metrics.skipped += 1
                     updated_paths.append(current_path)
                     continue
 
@@ -593,13 +592,13 @@ class ExifInjector:
                     logger.warning(
                         f"Skipping {current_path.name}: no date available in asset metadata"
                     )
-                    skipped_count += 1
+                    metrics.skipped += 1
                     updated_paths.append(current_path)
                     continue
 
                 # Inject date tag (may rename file)
                 self._inject_date_tag(current_path, date)
-                injected_count += 1
+                metrics.injected += 1
                 modified_asset_ids.add(asset.id)
 
                 # Check if file was renamed during normalization
@@ -649,25 +648,18 @@ class ExifInjector:
                     corrupted_asset_ids.add(asset.id)
                 else:
                     logger.warning(f"Failed to inject date into {current_path.name}: {e}")
-                failed_count += 1
+                metrics.failed += 1
                 updated_paths.append(current_path)
                 # Continue processing remaining files
 
             except Exception as e:
                 logger.warning(f"Unexpected error processing {current_path.name}: {e}")
-                failed_count += 1
+                metrics.failed += 1
                 updated_paths.append(current_path)
                 # Continue processing remaining files
 
-        logger.info(
-            f"EXIF date injection: {injected_count} injected, "
-            f"{skipped_count} skipped, {failed_count} failed"
+        logger.debug(
+            f"EXIF date injection: {metrics.injected} injected, "
+            f"{metrics.skipped} skipped, {metrics.failed} failed"
         )
-        return (
-            injected_count,
-            skipped_count,
-            failed_count,
-            modified_asset_ids,
-            updated_paths,
-            corrupted_asset_ids,
-        )
+        return metrics, modified_asset_ids, updated_paths, corrupted_asset_ids

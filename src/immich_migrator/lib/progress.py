@@ -1,94 +1,120 @@
 """Progress bar utilities using Rich."""
 
-from rich.console import Console
+from dataclasses import dataclass
+
+from rich.console import Console, Group
+from rich.live import Live
 from rich.progress import (
     BarColumn,
     DownloadColumn,
     Progress,
-    SpinnerColumn,
     TaskID,
     TextColumn,
     TimeRemainingColumn,
     TransferSpeedColumn,
 )
+from rich.table import Table
 
 
-def create_migration_progress() -> Progress:
-    """Create progress bar for overall migration tracking.
+@dataclass
+class ExifMetrics:
+    """Metrics for EXIF date injection operations."""
 
-    Returns:
-        Progress instance with overall migration columns
-    """
-    return Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]{task.description}"),
-        BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        TextColumn("{task.completed}/{task.total}"),
-        TimeRemainingColumn(),
-        console=Console(stderr=True),
-    )
+    injected: int = 0  # Successfully injected date metadata
+    skipped: int = 0  # Already had valid date metadata
+    failed: int = 0  # Failed injection (corrupted files)
 
-
-def create_download_progress() -> Progress:
-    """Create progress bar for download operations with speed tracking.
-
-    Returns:
-        Progress instance with download-specific columns
-    """
-    return Progress(
-        SpinnerColumn(),
-        TextColumn("[bold green]{task.description}"),
-        BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        DownloadColumn(),
-        TransferSpeedColumn(),
-        TimeRemainingColumn(),
-        console=Console(stderr=True),
-    )
+    def __add__(self, other: "ExifMetrics") -> "ExifMetrics":
+        """Add two ExifMetrics together."""
+        return ExifMetrics(
+            injected=self.injected + other.injected,
+            skipped=self.skipped + other.skipped,
+            failed=self.failed + other.failed,
+        )
 
 
-def create_batch_progress() -> Progress:
-    """Create progress bar for batch processing.
+@dataclass
+class LivePhotoMetrics:
+    """Metrics for live photo linking operations."""
 
-    Returns:
-        Progress instance for batch operations
-    """
-    return Progress(
-        SpinnerColumn(),
-        TextColumn("[bold cyan]{task.description}"),
-        BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        TextColumn("{task.completed}/{task.total}"),
-        console=Console(stderr=True),
-    )
+    total_pairs: int = 0  # Total expected pairs from source
+    found_images: int = 0  # Images found on destination
+    found_videos: int = 0  # Videos found on destination
+    ready_pairs: int = 0  # Pairs with both components found
+    linked: int = 0  # Successfully linked pairs
+    pending: int = 0  # Pairs still missing one or both components
+
+    def __add__(self, other: "LivePhotoMetrics") -> "LivePhotoMetrics":
+        """Add two LivePhotoMetrics together.
+
+        Note: total_pairs is not accumulated - it represents the total expected pairs
+        from the source album, which is constant throughout the migration.
+        """
+        return LivePhotoMetrics(
+            total_pairs=self.total_pairs,  # Keep original total, don't accumulate
+            found_images=self.found_images + other.found_images,
+            found_videos=self.found_videos + other.found_videos,
+            ready_pairs=self.ready_pairs + other.ready_pairs,
+            linked=self.linked + other.linked,
+            pending=self.pending + other.pending,
+        )
 
 
 class ProgressContext:
-    """Context manager for managing multiple progress bars."""
+    """Context manager for managing multiple progress bars with unified Live display."""
 
     def __init__(self) -> None:
-        """Initialize progress context with three progress bars."""
-        self.overall_progress = create_migration_progress()
-        self.batch_progress = create_batch_progress()
-        self.download_progress = create_download_progress()
+        """Initialize progress context with shared console and Live display."""
+        self.console = Console()  # Shared console for all progress bars
 
+        # Create progress bars without separate consoles
+        self.download_progress = Progress(
+            TextColumn("⬇️  Download"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            DownloadColumn(),
+            TransferSpeedColumn(),
+            TimeRemainingColumn(),
+        )
+
+        self.batch_progress = Progress(
+            TextColumn("📦 Batch"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("{task.completed}/{task.total}"),
+        )
+
+        self.overall_progress = Progress(
+            TextColumn("📊 Overall"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("{task.completed}/{task.total}"),
+            TimeRemainingColumn(),
+        )
+
+        self.live: Live | None = None
         self.overall_task: TaskID | None = None
         self.batch_task: TaskID | None = None
         self.download_task: TaskID | None = None
 
     def __enter__(self) -> "ProgressContext":
-        """Start all progress bars."""
-        self.overall_progress.start()
-        self.batch_progress.start()
-        self.download_progress.start()
+        """Start Live display with all progress bars."""
+        # Create group of all progress bars
+        progress_group = Group(
+            self.download_progress,
+            self.batch_progress,
+            self.overall_progress,
+        )
+
+        # Start Live display with the group
+        self.live = Live(progress_group, console=self.console, refresh_per_second=10)
+        self.live.start()
         return self
 
     def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
-        """Stop all progress bars."""
-        self.overall_progress.stop()
-        self.batch_progress.stop()
-        self.download_progress.stop()
+        """Stop Live display."""
+        if self.live:
+            self.live.stop()
 
     def start_overall(self, description: str, total: int) -> TaskID:
         """Start overall migration tracking.
@@ -116,17 +142,16 @@ class ProgressContext:
         self.batch_task = self.batch_progress.add_task(description, total=total)
         return self.batch_task
 
-    def start_download(self, description: str, total: int) -> TaskID:
+    def start_download(self, total: int) -> TaskID:
         """Start download tracking.
 
         Args:
-            description: Download description
             total: Total bytes to download
 
         Returns:
             Task ID for updating progress
         """
-        self.download_task = self.download_progress.add_task(description, total=total)
+        self.download_task = self.download_progress.add_task("", total=total)
         return self.download_task
 
     def update_overall(self, advance: int = 1) -> None:
@@ -167,3 +192,56 @@ class ProgressContext:
         if self.download_task is not None:
             self.download_progress.remove_task(self.download_task)
             self.download_task = None
+
+
+def display_migration_summary(
+    album_name: str,
+    total: int,
+    migrated: int,
+    failed: int,
+    duration: float,
+    exif_metrics: ExifMetrics | None = None,
+    live_photo_metrics: LivePhotoMetrics | None = None,
+) -> None:
+    """Display migration summary table with all metrics.
+
+    Args:
+        album_name: Name of migrated album
+        total: Total assets in album
+        migrated: Successfully migrated count
+        failed: Failed asset count
+        duration: Migration duration in seconds
+        exif_metrics: EXIF injection metrics (optional)
+        live_photo_metrics: Live photo linking metrics (optional)
+    """
+    console = Console()
+    table = Table(title=f"\n✅ Migration Completed: {album_name}", show_header=True)
+
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+
+    # Asset metrics
+    table.add_row("📷 Total Assets", str(total))
+    table.add_row("✅ Migrated", str(migrated))
+    if failed > 0:
+        table.add_row("❌ Failed", str(failed))
+
+    # EXIF metrics
+    if exif_metrics and (exif_metrics.injected + exif_metrics.skipped + exif_metrics.failed > 0):
+        exif_summary = (
+            f"{exif_metrics.injected} injected, "
+            f"{exif_metrics.skipped} skipped, "
+            f"{exif_metrics.failed} failed"
+        )
+        table.add_row("📝 EXIF Injected", exif_summary)
+
+    # Live photo metrics
+    if live_photo_metrics and live_photo_metrics.linked > 0:
+        table.add_row(
+            "🔗 Live Photos", f"{live_photo_metrics.linked}/{live_photo_metrics.total_pairs} linked"
+        )
+
+    # Duration
+    table.add_row("⏱️ Duration", f"{duration:.1f}s")
+
+    console.print(table)
