@@ -92,14 +92,14 @@ class TestCliCredentials:
 
         with patch("immich_migrator.cli.app.Path.home", return_value=tmp_path / "home"):
             with patch("immich_migrator.cli.app.asyncio.run", side_effect=_mock_asyncio_run):
-                result = runner.invoke(app, ["main"])
+                result = runner.invoke(app, ["migrate"])
                 # Should attempt to load credentials and run migration
                 assert result.exit_code == 0
 
     def test_custom_credentials_file(self, mock_credentials_file):
         """Test loading credentials from custom path."""
         with patch("immich_migrator.cli.app.asyncio.run", side_effect=_mock_asyncio_run):
-            result = runner.invoke(app, ["main", "--credentials", str(mock_credentials_file)])
+            result = runner.invoke(app, ["migrate", "--credentials", str(mock_credentials_file)])
             # Should load credentials successfully
             assert result.exit_code == 0
             assert "Loading credentials" in result.stdout
@@ -107,7 +107,7 @@ class TestCliCredentials:
     def test_missing_credentials_file_error(self, tmp_path):
         """Test error when credentials file doesn't exist."""
         nonexistent = tmp_path / "missing.env"
-        result = runner.invoke(app, ["main", "--credentials", str(nonexistent)])
+        result = runner.invoke(app, ["migrate", "--credentials", str(nonexistent)])
         assert result.exit_code == 2  # Typer validation error
         # Typer outputs validation errors to stderr, but CliRunner captures both
         output = result.stdout + (result.stderr or "")
@@ -122,7 +122,7 @@ class TestCliCredentials:
             "immich_migrator.models.config.ImmichCredentials.from_env_file"
         ) as mock_from_env:
             mock_from_env.side_effect = KeyError("Missing required key")
-            result = runner.invoke(app, ["main", "--credentials", str(bad_creds)])
+            result = runner.invoke(app, ["migrate", "--credentials", str(bad_creds)])
             assert result.exit_code == 1
 
 
@@ -134,7 +134,7 @@ class TestCliOptions:
         with patch("immich_migrator.cli.app.asyncio.run", side_effect=_mock_asyncio_run):
             result = runner.invoke(
                 app,
-                ["main", "--credentials", str(mock_credentials_file), "--batch-size", "50"],
+                ["migrate", "--credentials", str(mock_credentials_file), "--batch-size", "50"],
             )
             assert result.exit_code == 0
 
@@ -144,7 +144,7 @@ class TestCliOptions:
             result = runner.invoke(
                 app,
                 [
-                    "main",
+                    "migrate",
                     "--credentials",
                     str(mock_credentials_file),
                     "--log-level",
@@ -163,7 +163,7 @@ class TestCliOptions:
             result = runner.invoke(
                 app,
                 [
-                    "main",
+                    "migrate",
                     "--credentials",
                     str(mock_credentials_file),
                     "--state-file",
@@ -180,7 +180,7 @@ class TestCliOptions:
             result = runner.invoke(
                 app,
                 [
-                    "main",
+                    "migrate",
                     "--credentials",
                     str(mock_credentials_file),
                     "--temp-dir",
@@ -193,7 +193,7 @@ class TestCliOptions:
         """Test batch size minimum validation."""
         result = runner.invoke(
             app,
-            ["main", "--credentials", str(mock_credentials_file), "--batch-size", "0"],
+            ["migrate", "--credentials", str(mock_credentials_file), "--batch-size", "0"],
         )
         assert result.exit_code == 2  # Validation error
 
@@ -201,7 +201,7 @@ class TestCliOptions:
         """Test batch size maximum validation."""
         result = runner.invoke(
             app,
-            ["main", "--credentials", str(mock_credentials_file), "--batch-size", "101"],
+            ["migrate", "--credentials", str(mock_credentials_file), "--batch-size", "101"],
         )
         assert result.exit_code == 2  # Validation error
 
@@ -218,7 +218,7 @@ class TestCliErrorHandling:
 
         with patch("immich_migrator.cli.app.asyncio.run") as mock_run:
             mock_run.side_effect = _raise_keyboard_interrupt
-            result = runner.invoke(app, ["main", "--credentials", str(mock_credentials_file)])
+            result = runner.invoke(app, ["migrate", "--credentials", str(mock_credentials_file)])
             assert result.exit_code == 130  # Unix convention for SIGINT
             output = result.stdout + (result.stderr or "")
             assert "interrupted" in output.lower()
@@ -232,7 +232,7 @@ class TestCliErrorHandling:
 
         with patch("immich_migrator.cli.app.asyncio.run") as mock_run:
             mock_run.side_effect = _raise_runtime_error
-            result = runner.invoke(app, ["main", "--credentials", str(mock_credentials_file)])
+            result = runner.invoke(app, ["migrate", "--credentials", str(mock_credentials_file)])
             assert result.exit_code == 1
             output = result.stdout + (result.stderr or "")
             assert "error" in output.lower()
@@ -244,13 +244,13 @@ class TestCliOutput:
     def test_version_display(self, mock_credentials_file):
         """Test that version is displayed on startup."""
         with patch("immich_migrator.cli.app.asyncio.run", side_effect=_mock_asyncio_run):
-            result = runner.invoke(app, ["main", "--credentials", str(mock_credentials_file)])
+            result = runner.invoke(app, ["migrate", "--credentials", str(mock_credentials_file)])
             assert result.exit_code == 0
             assert "Migration Tool" in result.stdout
 
     def test_credentials_loading_message(self, mock_credentials_file):
         """Test credentials loading message is displayed."""
         with patch("immich_migrator.cli.app.asyncio.run", side_effect=_mock_asyncio_run):
-            result = runner.invoke(app, ["main", "--credentials", str(mock_credentials_file)])
+            result = runner.invoke(app, ["migrate", "--credentials", str(mock_credentials_file)])
             assert result.exit_code == 0
             assert "Loading credentials" in result.stdout

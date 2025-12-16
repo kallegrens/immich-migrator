@@ -182,15 +182,15 @@ class TestCorruptedFileHandling:
         injector = ExifInjector()
 
         # Attempt injection - should detect corruption
-        injected, skipped, failed, modified_ids, updated_paths, corrupted_ids = (
-            injector.inject_dates_for_batch([asset], [corrupted_webp])
+        metrics, modified_ids, updated_paths, corrupted_ids = injector.inject_dates_for_batch(
+            [asset], [corrupted_webp]
         )
 
         # Verify corrupted file was identified
         assert len(corrupted_ids) == 1
         assert asset.id in corrupted_ids
-        assert injected == 0
-        assert failed == 1
+        assert metrics.injected == 0
+        assert metrics.failed == 1
 
     @pytest.mark.integration
     def test_corrupted_files_excluded_from_successful_paths(self, tmp_path, uuid_factory):
@@ -227,8 +227,8 @@ class TestCorruptedFileHandling:
         injector = ExifInjector()
 
         # Process batch
-        injected, skipped, failed, modified_ids, updated_paths, corrupted_ids = (
-            injector.inject_dates_for_batch([asset1, asset2], [corrupted_file1, corrupted_file2])
+        metrics, modified_ids, updated_paths, corrupted_ids = injector.inject_dates_for_batch(
+            [asset1, asset2], [corrupted_file1, corrupted_file2]
         )
 
         # Verify both corrupted files identified
@@ -256,8 +256,8 @@ class TestCorruptedFileHandling:
         injector = ExifInjector()
 
         # Inject dates - should detect corruption
-        injected, skipped, failed, modified_ids, updated_paths, corrupted_ids = (
-            injector.inject_dates_for_batch([asset], [corrupted_webp])
+        metrics, modified_ids, updated_paths, corrupted_ids = injector.inject_dates_for_batch(
+            [asset], [corrupted_webp]
         )
 
         # Simulate the CLI logic: move corrupted file and remove from successful_paths
@@ -298,7 +298,7 @@ class TestCorruptedFileHandling:
         injector = ExifInjector()
 
         # Should handle corruption gracefully
-        _, _, _, _, _, corrupted_ids = injector.inject_dates_for_batch([asset], [corrupted_webp])
+        _, _, _, corrupted_ids = injector.inject_dates_for_batch([asset], [corrupted_webp])
 
         assert asset.id in corrupted_ids
 

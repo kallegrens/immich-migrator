@@ -47,7 +47,7 @@ class TestDownloadWorkflows:
         ]
 
         # Mock download to write empty file (matches checksum above)
-        async def mock_download(asset, dest_path):
+        async def mock_download(asset, dest_path, progress_callback=None):
             dest_path.write_bytes(b"")
 
         mock_client.download_asset = mock_download
@@ -89,7 +89,7 @@ class TestDownloadWorkflows:
 
         call_count = 0
 
-        async def mock_download(asset, dest_path):
+        async def mock_download(asset, dest_path, progress_callback=None):
             nonlocal call_count
             call_count += 1
             if "failure" in asset.original_file_name:
@@ -124,7 +124,7 @@ class TestDownloadWorkflows:
         )
 
         # Mock download writes wrong content
-        async def mock_download(a, dest_path):
+        async def mock_download(a, dest_path, progress_callback=None):
             dest_path.write_bytes(b"wrong content")
 
         mock_client.download_asset = mock_download
