@@ -1,5 +1,6 @@
 # 📸 Immich Migration Tool
 
+[![uv][uv-badge]][uv]
 [![PyPI][pypi-badge]][pypi]
 [![Python Version][python-badge]][pypi]
 [![Tests][tests-badge]][tests]
@@ -7,6 +8,8 @@
 [![License][license-badge]][license]
 [![Conventional Commits][cc-badge]][cc]
 
+[uv]: https://github.com/astral-sh/uv
+[uv-badge]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json
 [pypi-badge]: https://img.shields.io/pypi/v/immich-migrator
 [pypi]: https://pypi.org/project/immich-migrator/
 [python-badge]: https://img.shields.io/pypi/pyversions/immich-migrator
