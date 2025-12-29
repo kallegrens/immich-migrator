@@ -147,6 +147,30 @@ class TestAsset:
         asset_with = asset_factory(file_created_at=now)
         assert asset_with.file_created_at == now
 
+    @pytest.mark.unit
+    def test_asset_mime_types_with_special_chars(self, uuid_factory):
+        """Asset accepts MIME types with hyphens, dots, and plus signs."""
+        valid_mime_types = [
+            "image/jpeg",
+            "video/x-ms-wmv",  # WMV video with hyphen
+            "application/vnd.ms-excel",  # Excel with vendor prefix
+            "image/svg+xml",  # SVG with plus sign
+            "video/x-msvideo",  # AVI
+            "application/x-tar",  # TAR
+            "video/x-matroska",  # MKV
+        ]
+
+        for mime_type in valid_mime_types:
+            asset = Asset(
+                id=uuid_factory(),
+                original_file_name="test.file",
+                original_mime_type=mime_type,
+                checksum="c" * 40,
+                asset_type="IMAGE",
+                file_size_bytes=512,
+            )
+            assert asset.original_mime_type == mime_type
+
 
 # ============================================================================
 # MigrationStatus Tests

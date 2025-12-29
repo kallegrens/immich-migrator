@@ -12,7 +12,7 @@ class Asset(BaseModel):
 
     id: str = Field(pattern=r"^[0-9a-f-]{36}$")  # UUID format
     original_file_name: str = Field(min_length=1)
-    original_mime_type: str = Field(pattern=r"^\w+/\w+$")
+    original_mime_type: str = Field(pattern=r"^[\w\-]+/[\w\.\-\+]+$")
     checksum: str = Field(pattern=r"^[0-9a-f]{40}$")  # SHA1
     file_created_at: datetime | None = None
     file_size_bytes: int | None = Field(None, ge=0)
