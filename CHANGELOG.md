@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5](https://github.com/kallegrens/immich-migrator/compare/v0.4.4...v0.4.5) (2025-12-29)
+
+
+### Bug Fixes
+
+* allow mime types with special symbols like + and - ([b26aabd](https://github.com/kallegrens/immich-migrator/commit/b26aabdc15578cc915700ef7b839e2ca308a395f))
+
 ## [0.4.4](https://github.com/kallegrens/immich-migrator/compare/v0.4.3...v0.4.4) (2025-12-17)
 
 
