@@ -323,6 +323,72 @@ async def migrate_album(
         console.print(f"[bold]Loading assets for {album.album_name}...[/bold]")
         album = await old_client.get_album_assets(album.id)
 
+    # === PRE-MIGRATION VERIFICATION ===
+    # Check which assets already exist on destination server BEFORE downloading
+    # This avoids unnecessary downloads for already-migrated assets (e.g., lost state.json)
+    console.print("[bold cyan]🔍 Checking existing assets on destination server...[/bold cyan]")
+
+    # Build asset lookup map for live photo pair handling
+    all_assets_by_id = {asset.id: asset for asset in album.assets}
+
+    # Verify all assets against destination server
+    pre_verified_ids, pre_missing_ids = uploader.verify_assets_exist(album.assets)
+
+    # For live photos: if either component is missing, treat BOTH as missing
+    # This ensures we don't end up with orphaned components
+    adjusted_missing_ids = set(pre_missing_ids)
+    for asset in album.assets:
+        if asset.live_photo_video_id and asset.live_photo_video_id in all_assets_by_id:
+            image_missing = asset.id in pre_missing_ids
+            video_missing = asset.live_photo_video_id in pre_missing_ids
+            if image_missing or video_missing:
+                # Both components need to be migrated together
+                adjusted_missing_ids.add(asset.id)
+                adjusted_missing_ids.add(asset.live_photo_video_id)
+
+    # Recalculate verified IDs after live photo adjustment
+    adjusted_verified_ids = [
+        asset_id for asset_id in pre_verified_ids if asset_id not in adjusted_missing_ids
+    ]
+
+    # Track pre-verified assets in state
+    for asset_id in adjusted_verified_ids:
+        album_state.add_verified_asset(asset_id)
+    state_manager.save(migration_state)
+
+    pre_verified_count = len(adjusted_verified_ids)
+    pre_missing_count = len(adjusted_missing_ids)
+
+    if pre_verified_count > 0:
+        console.print(f"[green]✓ {pre_verified_count} assets already exist on destination[/green]")
+
+    if pre_missing_count == 0:
+        # All assets already exist - mark as completed and return early
+        console.print(
+            f"[bold green]✓ All {pre_verified_count} assets already migrated![/bold green]"
+        )
+        album_state.mark_completed()
+        state_manager.save(migration_state)
+
+        # Display summary
+        duration = time.time() - start_time
+        display_migration_summary(
+            album_name=album.album_name,
+            total=len(album.assets),
+            migrated=pre_verified_count,
+            failed=0,
+            duration=duration,
+            exif_metrics=ExifMetrics(),
+            live_photo_metrics=LivePhotoMetrics(),
+        )
+        return
+
+    console.print(f"[cyan]⬇ {pre_missing_count} assets need to be migrated[/cyan]\n")
+
+    # Filter album assets to only include those that need migration
+    original_asset_count = len(album.assets)
+    album.assets = [asset for asset in album.assets if asset.id in adjusted_missing_ids]
+
     # Reorder assets so live photo images are immediately followed by their videos.
     # This ensures both components are downloaded and uploaded together in the same batch.
     assets_by_id = {asset.id: asset for asset in album.assets}
@@ -383,7 +449,8 @@ async def migrate_album(
 
     console.print(
         f"\n[bold green]Migrating {album.album_name}[/bold green] "
-        f"({total_assets} assets, batch size: {batch_size})\n"
+        f"({total_assets} to migrate, {pre_verified_count} pre-verified, "
+        f"{original_asset_count} total, batch size: {batch_size})\n"
     )
 
     # Calculate resume point
@@ -423,7 +490,8 @@ async def migrate_album(
     # Display album header
     console.print(f"\n[bold green]📦 Migrating:[/bold green] {album.album_name}")
     console.print(
-        f"[dim]{len(remaining_assets)} assets • {total_bytes / (1024**2):.1f} MB "
+        f"[dim]{len(remaining_assets)} assets to download/upload • "
+        f"{total_bytes / (1024**2):.1f} MB "
         f"(~{total_bytes * 2 / (1024**2):.1f} MB total with upload)[/dim]\n"
     )
 
@@ -635,17 +703,18 @@ async def migrate_album(
     )
 
     # Check completion (now accounting for verification results)
+    # Use original_asset_count since album.assets was filtered to only missing assets
     total_verified = len(album_state.verified_asset_ids)
     total_failed = len(album_state.permanently_failed_assets)
     total_download_failed = len(album_state.failed_asset_ids)
 
-    if total_verified >= album.asset_count:
+    if total_verified >= original_asset_count:
         album_state.mark_completed()
     elif total_verified > 0:
         if total_failed > 0 or total_download_failed > 0:
             console.print(
                 f"\n[yellow]⚠️  Partial migration: "
-                f"{total_verified}/{album.asset_count} verified, "
+                f"{total_verified}/{original_asset_count} verified, "
                 f"{total_failed} permanently failed, "
                 f"{total_download_failed} download failures[/yellow]"
             )
@@ -660,7 +729,7 @@ async def migrate_album(
     duration = time.time() - start_time
     display_migration_summary(
         album_name=album.album_name,
-        total=album.asset_count,
+        total=original_asset_count,
         migrated=total_verified,
         failed=total_failed + total_download_failed,
         duration=duration,

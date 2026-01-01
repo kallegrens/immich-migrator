@@ -67,8 +67,15 @@ class AlbumState(BaseModel):
     def validate_completion_state(self) -> "AlbumState":
         """Validate state consistency for COMPLETED and FAILED statuses."""
         if self.status == MigrationStatus.COMPLETED:
-            if self.migrated_count != self.asset_count:
-                raise ValueError("COMPLETED albums must have migrated_count == asset_count")
+            # Album is valid if either:
+            # 1. migrated_count == asset_count (traditional completion)
+            # 2. len(verified_asset_ids) >= asset_count (pre-verification completion)
+            verified_count = len(self.verified_asset_ids)
+            if self.migrated_count != self.asset_count and verified_count < self.asset_count:
+                raise ValueError(
+                    "COMPLETED albums must have migrated_count == asset_count "
+                    "or verified_asset_ids >= asset_count"
+                )
         if self.status == MigrationStatus.FAILED:
             if not self.error_message:
                 raise ValueError("FAILED albums must have error_message set")

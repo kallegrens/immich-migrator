@@ -1,10 +1,13 @@
 """State management for migration progress persistence."""
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import Any
 
 from ..lib.logging import get_logger
-from ..models.state import MigrationState
+from ..models.state import AlbumState, MigrationState
 
 logger = get_logger()  # type: ignore[no-untyped-call]
 
@@ -43,10 +46,57 @@ class StateManager:
             )
             return state
 
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Failed to load state file {self.state_file}: {e}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse state file {self.state_file}: {e}")
             logger.info("Creating new state")
             return MigrationState()
+
+        except ValueError as e:
+            # Validation error - try to load with partial recovery
+            logger.warning(f"State validation failed: {e}")
+            return self._load_with_recovery(data)
+
+    def _load_with_recovery(self, data: dict[str, Any]) -> MigrationState:
+        """Load state with recovery for invalid albums.
+
+        Attempts to load each album individually, skipping those that fail validation.
+        Invalid albums are reset to allow re-migration.
+
+        Args:
+            data: Raw JSON data from state file
+
+        Returns:
+            MigrationState with valid albums preserved and invalid albums reset
+        """
+        # Create backup before recovery
+        self.backup()
+
+        albums_data = data.get("albums", {})
+        valid_albums: dict[str, AlbumState] = {}
+        invalid_count = 0
+
+        for album_id, album_data in albums_data.items():
+            try:
+                album_state = AlbumState.model_validate(album_data)
+                valid_albums[album_id] = album_state
+            except ValueError as e:
+                invalid_count += 1
+                album_name = album_data.get("album_name", "Unknown")
+                logger.warning(f"Resetting invalid album '{album_name}' ({album_id}): {e}")
+                # Album will be re-created when encountered during migration
+
+        if invalid_count > 0:
+            logger.info(
+                f"Recovered state: {len(valid_albums)} valid albums, "
+                f"{invalid_count} invalid albums reset"
+            )
+
+        # Create state with valid albums only
+        state = MigrationState(albums=valid_albums)
+        # Save recovered state immediately
+        self.save(state)
+
+        return state
 
     def save(self, state: MigrationState) -> None:
         """Save migration state with atomic write.
