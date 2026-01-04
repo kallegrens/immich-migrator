@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.6](https://github.com/kallegrens/immich-migrator/compare/v0.4.5...v0.4.6) (2026-01-04)
+
+
+### Bug Fixes
+
+* don't clear state.json for all albums if inconsistent ([94831e5](https://github.com/kallegrens/immich-migrator/commit/94831e5e1f21dd52aedd0dac779d46e9ba829cdd))
+
 ## [0.4.5](https://github.com/kallegrens/immich-migrator/compare/v0.4.4...v0.4.5) (2025-12-29)
 
 
