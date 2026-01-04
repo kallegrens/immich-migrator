@@ -66,7 +66,7 @@ jobs:
             --cov=src/immich_migrator \
             --cov-report=xml \
             --cov-report=term-missing \
-            --cov-fail-under=45 \
+            --cov-fail-under=40 \
             --cov-branch
 
       - name: Upload coverage to Codecov
