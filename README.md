@@ -299,7 +299,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history and breaking changes.
 ### Latest Release
 
 > [!NOTE]
-> [Version 0.4.6][release-page] is the current stable release. <!-- {x-release-please-version} -->
+> [Version 0.4.7][release-page] is the current stable release. <!-- {x-release-please-version} -->
 
 ---
 
