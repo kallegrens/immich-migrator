@@ -446,3 +446,128 @@ class Uploader:
         except Exception as e:
             logger.error(f"Error linking live photo: {e}")
             return False
+
+    def get_or_create_album(self, album_name: str) -> str | None:
+        """Get existing album by name or create a new one on destination server.
+
+        Args:
+            album_name: Name of the album to find or create
+
+        Returns:
+            Album ID on destination server, or None if failed
+        """
+        try:
+            # First, try to find existing album by name
+            response = httpx.get(
+                f"{self.server_url}/api/albums",
+                headers={"x-api-key": self.api_key},
+                timeout=30,
+            )
+            response.raise_for_status()
+            albums = response.json()
+
+            for album in albums:
+                if album.get("albumName") == album_name:
+                    album_id = album.get("id")
+                    logger.debug(f"Found existing album '{album_name}': {album_id}")
+                    return album_id
+
+            # Album doesn't exist, create it
+            response = httpx.post(
+                f"{self.server_url}/api/albums",
+                headers={"x-api-key": self.api_key},
+                json={"albumName": album_name},
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+            album_id = data.get("id")
+            logger.info(f"Created new album '{album_name}': {album_id}")
+            return album_id
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Failed to get/create album '{album_name}': {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting/creating album '{album_name}': {e}")
+            return None
+
+    def add_assets_to_album(
+        self,
+        album_id: str,
+        asset_ids: list[str],
+        batch_size: int = 500,
+    ) -> tuple[int, int]:
+        """Add assets to an album on the destination server.
+
+        Uses PUT /api/albums/{id}/assets endpoint. Batches requests to avoid
+        hitting API limits.
+
+        Args:
+            album_id: Destination album ID
+            asset_ids: List of destination asset IDs to add
+            batch_size: Maximum assets per API request (conservative default)
+
+        Returns:
+            Tuple of (successfully_added, failed_to_add)
+        """
+        if not asset_ids:
+            return 0, 0
+
+        logger.debug(f"Adding {len(asset_ids)} assets to album {album_id}")
+        total_added = 0
+        total_failed = 0
+
+        # Process in batches
+        for i in range(0, len(asset_ids), batch_size):
+            batch = asset_ids[i : i + batch_size]
+
+            try:
+                response = httpx.put(
+                    f"{self.server_url}/api/albums/{album_id}/assets",
+                    headers={"x-api-key": self.api_key},
+                    json={"ids": batch},
+                    timeout=60,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                # Response contains list of results per asset
+                for result in data:
+                    if result.get("success", False):
+                        total_added += 1
+                    else:
+                        # Asset may already be in album (not an error)
+                        # API returns "duplicate" or "already in album" style errors
+                        error = result.get("error", "").lower()
+                        if "already" in error or "duplicate" in error:
+                            total_added += 1  # Count as success - asset is in album
+                        else:
+                            total_failed += 1
+                            logger.warning(f"Failed to add asset {result.get('id')}: {error}")
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Failed to add batch to album: {e}")
+                total_failed += len(batch)
+            except Exception as e:
+                logger.error(f"Error adding batch to album: {e}")
+                total_failed += len(batch)
+
+        logger.debug(f"Album add complete: {total_added} added, {total_failed} failed")
+        return total_added, total_failed
+
+    def get_destination_asset_ids(
+        self,
+        checksums: list[str],
+    ) -> dict[str, str]:
+        """Get destination asset IDs for a list of checksums.
+
+        Wrapper around _find_assets_by_checksums for external use.
+
+        Args:
+            checksums: List of SHA1 checksums
+
+        Returns:
+            Dict mapping checksum -> destination_asset_id
+        """
+        return self._find_assets_by_checksums(checksums)

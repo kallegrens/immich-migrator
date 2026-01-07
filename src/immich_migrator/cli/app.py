@@ -15,7 +15,7 @@ from ..lib.progress import ExifMetrics, LivePhotoMetrics, display_migration_summ
 from ..models.album import Album
 from ..models.asset import Asset
 from ..models.config import Config, ImmichCredentials
-from ..models.state import AlbumState, MigrationState
+from ..models.state import AlbumState, MigrationState, MigrationStatus
 from ..services.downloader import Downloader, compute_file_checksum
 from ..services.exif_injector import ExifInjectionError, ExifInjector
 from ..services.immich_client import ImmichClient
@@ -323,6 +323,22 @@ async def migrate_album(
         console.print(f"[bold]Loading assets for {album.album_name}...[/bold]")
         album = await old_client.get_album_assets(album.id)
 
+    # === FORCE FRESH START ===
+    # Always reset album state to ensure consistent counts.
+    # Pre-verification below will handle detecting already-migrated assets.
+    if album_state.status != MigrationStatus.PENDING or album_state.migrated_count > 0:
+        console.print("[yellow]Resetting album state for fresh migration...[/yellow]")
+        album_state.reset_to_pending()
+        state_manager.save(migration_state)
+
+    # Update asset_count to actual count (including live photo videos)
+    # The API's assetCount excludes hidden videos, but we track them all
+    actual_asset_count = len(album.assets)
+    if album_state.asset_count != actual_asset_count:
+        logger.info(f"Setting asset count to {actual_asset_count} (includes live photo videos)")
+        album_state.asset_count = actual_asset_count
+        album.asset_count = actual_asset_count
+
     # === PRE-MIGRATION VERIFICATION ===
     # Check which assets already exist on destination server BEFORE downloading
     # This avoids unnecessary downloads for already-migrated assets (e.g., lost state.json)
@@ -361,6 +377,45 @@ async def migrate_album(
 
     if pre_verified_count > 0:
         console.print(f"[green]✓ {pre_verified_count} assets already exist on destination[/green]")
+
+        # Add pre-existing assets to target album (skip for unalbummed assets)
+        if not album.is_virtual_unalbummed:
+            console.print("[dim]Adding pre-existing assets to target album...[/dim]")
+
+            # Get or create the target album on destination
+            dest_album_id = uploader.get_or_create_album(album.album_name)
+            if dest_album_id:
+                # Get checksums for pre-verified assets, but SKIP live photo videos
+                # Live photo videos are hidden and linked to their image - they're
+                # not direct album members. Only add the images to the album.
+                live_photo_video_ids = {
+                    asset.live_photo_video_id for asset in album.assets if asset.live_photo_video_id
+                }
+                verified_checksums = [
+                    all_assets_by_id[asset_id].checksum
+                    for asset_id in adjusted_verified_ids
+                    if asset_id in all_assets_by_id
+                    and asset_id not in live_photo_video_ids  # Skip videos
+                ]
+
+                # Look up destination asset IDs by checksum
+                checksum_to_dest_id = uploader.get_destination_asset_ids(verified_checksums)
+
+                # Add to album
+                dest_asset_ids = list(checksum_to_dest_id.values())
+                if dest_asset_ids:
+                    added, failed = uploader.add_assets_to_album(dest_album_id, dest_asset_ids)
+                    if added > 0:
+                        console.print(
+                            f"[green]✓ Added {added} pre-existing assets to album[/green]"
+                        )
+                    if failed > 0:
+                        console.print(f"[yellow]⚠ Failed to add {failed} assets to album[/yellow]")
+            else:
+                console.print(
+                    "[yellow]⚠ Could not create target album, "
+                    "pre-existing assets won't be added[/yellow]"
+                )
 
     if pre_missing_count == 0:
         # All assets already exist - mark as completed and return early
@@ -416,19 +471,8 @@ async def migrate_album(
     total_assets = len(album.assets)
     batch_size = config.batch_size
 
-    # Update asset_count in state to include live photo videos
-    # (API's assetCount excludes hidden videos, but we need to migrate them too)
-    if album_state.asset_count != total_assets:
-        logger.info(
-            f"Updating asset count from {album_state.asset_count} to {total_assets} "
-            "(includes live photo videos)"
-        )
-        album_state.asset_count = total_assets
-        album.asset_count = total_assets  # Keep Album model in sync
-        state_manager.save(migration_state)
-
     # Collect live photo pairs for linking after upload
-    live_photo_pairs = []
+    live_photo_pairs: list[tuple[Asset, Asset]] = []
     for asset in album.assets:
         if asset.live_photo_video_id and asset.live_photo_video_id in assets_by_id:
             video_asset = assets_by_id[asset.live_photo_video_id]
@@ -453,26 +497,9 @@ async def migrate_album(
         f"{original_asset_count} total, batch size: {batch_size})\n"
     )
 
-    # Calculate resume point
-    start_index = album_state.migrated_count
-
-    # Check for resume with live photos - warn about potential ordering issues
-    # Live photos are now reordered so image+video are together, but previous runs
-    # may have used different ordering. If there are unlinked live photos from
-    # previous runs, they will be attempted to link during this run.
-    unlinked_from_state = album_state.get_unlinked_live_photos()
-    if start_index > 0 and unlinked_from_state:
-        console.print(
-            f"[yellow]⚠ Resuming with {len(unlinked_from_state)} unlinked live photos. "
-            f"These will be linked if both components exist on destination.[/yellow]\n"
-        )
-
-    remaining_assets = album.assets[start_index:]
-
-    if start_index > 0:
-        # Clamp display index to total_assets to avoid showing "2/1" etc.
-        display_index = min(start_index + 1, total_assets)
-        console.print(f"[yellow]⏭️  Resuming from asset {display_index}/{total_assets}[/yellow]\n")
+    # No resume - we always start fresh after pre-verification filtering
+    # All remaining assets in album.assets need to be migrated
+    remaining_assets = album.assets
 
     # Calculate total bytes for progress tracking
     total_bytes = sum(
@@ -480,7 +507,8 @@ async def migrate_album(
     )
 
     # Accumulate checksum overrides for assets modified by EXIF injection
-    checksum_overrides = {}
+    # This will be persisted to state and used for verification
+    checksum_overrides: dict[str, str] = {}
 
     # Track cumulative metrics
     cumulative_exif = ExifMetrics()
@@ -507,9 +535,7 @@ async def migrate_album(
         )
 
         # Process in batches
-        for batch_num, i in enumerate(
-            range(0, len(remaining_assets), batch_size), start=start_index // batch_size + 1
-        ):
+        for batch_num, i in enumerate(range(0, len(remaining_assets), batch_size), start=1):
             batch_assets = remaining_assets[i : i + batch_size]
             batch_dir = config.temp_dir / f"batch_{album.id}_{batch_num}"
 
@@ -618,17 +644,28 @@ async def migrate_album(
                         f"[red]✗ {len(corrupted_ids)} corrupted file(s) excluded from upload[/red]"
                     )
 
-                # Recompute checksums for modified files and add to accumulated overrides
+                # Recompute checksums for modified files and persist to state
+                # Exclude corrupted files (they've been moved to failed dir)
                 if modified_ids:
                     logger.debug(f"Recomputing checksums for {len(modified_ids)} modified assets")
                     for asset, file_path in zip(downloaded_assets, updated_paths):
-                        if asset.id in modified_ids:
+                        if asset.id in modified_ids and asset.id not in corrupted_ids:
+                            # Check if file exists (may have been renamed/moved)
+                            if not Path(file_path).exists():
+                                logger.warning(
+                                    f"Skipping checksum for {asset.original_file_name}: "
+                                    f"file not found at {file_path}"
+                                )
+                                continue
                             new_checksum = compute_file_checksum(file_path)
                             checksum_overrides[asset.id] = new_checksum
+                            # Persist to state for verification and future retries
+                            album_state.set_checksum_override(asset.id, new_checksum)
                             logger.debug(
                                 f"Asset {asset.id}: checksum changed from "
                                 f"{asset.checksum[:8]}... to {new_checksum[:8]}..."
                             )
+                    state_manager.save(migration_state)
 
             # Upload batch (skip if no files remain after exclusions)
             try:
@@ -756,7 +793,7 @@ async def verify_and_retry_missing_assets(
 
     This function:
     1. Verifies all album assets exist on the target server by checksum
-    2. Retries missing assets up to verify_retries times with full processing
+    2. Retries missing assets up to verify_retries times with full processing (batched)
     3. Downloads permanently failed assets to failed_output_dir for manual recovery
 
     Args:
@@ -772,8 +809,12 @@ async def verify_and_retry_missing_assets(
         verify_retries: Number of retry attempts
         failed_output_dir: Directory for failed assets
         checksum_overrides: Dict mapping asset_id -> checksum for EXIF-modified assets
+                           (merged with state's persisted overrides)
     """
     logger = get_logger()  # type: ignore[no-untyped-call]
+
+    # Merge passed overrides with state's persisted overrides (passed takes precedence)
+    effective_overrides = {**album_state.checksum_overrides, **checksum_overrides}
 
     # Build a map of all assets by ID for easy lookup
     assets_by_id = {asset.id: asset for asset in album.assets}
@@ -787,9 +828,9 @@ async def verify_and_retry_missing_assets(
         console.print("[yellow]No assets to verify (all failed during download)[/yellow]")
         return
 
-    # Initial verification
+    # Initial verification using effective checksum overrides
     verified_ids, missing_ids = uploader.verify_assets_exist(
-        assets_to_verify, checksum_overrides=checksum_overrides
+        assets_to_verify, checksum_overrides=effective_overrides
     )
 
     # Update state with initial verification results
@@ -810,11 +851,13 @@ async def verify_and_retry_missing_assets(
         console.print("[green]✓ All assets verified on target server[/green]")
         return
 
-    # Retry missing assets
+    # Retry missing assets in batches
+    batch_size = config.batch_size
+
     if verify_retries > 0:
         console.print(
             f"\n[bold cyan]Retrying {len(missing_ids)} missing assets "
-            f"(max {verify_retries} attempts)...[/bold cyan]"
+            f"(max {verify_retries} attempts, batch size {batch_size})...[/bold cyan]"
         )
 
         for attempt in range(1, verify_retries + 1):
@@ -833,156 +876,174 @@ async def verify_and_retry_missing_assets(
             if not missing_assets:
                 break
 
-            # Process missing assets through full pipeline
-            retry_batch_dir = config.temp_dir / f"retry_{album.id}_{attempt}"
+            # Process missing assets in batches (same batch size as main migration)
+            total_retry_verified = 0
+            total_retry_still_missing = 0
 
-            try:
-                # Download
-                console.print(f"  Downloading {len(missing_assets)} assets...")
-                successful_paths, failed_ids = await downloader.download_batch(
-                    missing_assets, retry_batch_dir
-                )
-
-                if not successful_paths:
-                    console.print("  [red]All downloads failed, skipping retry[/red]")
-                    # Track download failures
-                    for asset_id in failed_ids:
-                        asset = assets_by_id.get(asset_id)
-                        if asset:
-                            album_state.add_permanently_failed_asset(
-                                asset_id=asset_id,
-                                original_file_name=asset.original_file_name,
-                                checksum=asset.checksum,
-                                failure_reason=f"Download failed on retry {attempt}",
-                            )
-                    continue
-
-                # EXIF injection
-                if exif_injector:
-                    downloaded_assets = [a for a in missing_assets if a.id not in failed_ids]
-                    exif_metrics, modified_ids, updated_paths, corrupted_ids = (
-                        exif_injector.inject_dates_for_batch(downloaded_assets, successful_paths)
-                    )
-                    # Update successful_paths to reflect any file renames and normalize to
-                    # absolute strings
-                    successful_paths = [str(Path(p).absolute()) for p in updated_paths]  # type: ignore[misc]
-
-                    if exif_metrics.injected > 0:
-                        console.print(f"  Injected EXIF dates for {exif_metrics.injected} asset(s)")
-
-                    # Track corrupted files as permanently failed and move them out
-                    if corrupted_ids:
-                        safe_album_name = "".join(
-                            c if c.isalnum() or c in "._-" else "_" for c in album.album_name
-                        ).strip()
-                        album_failed_dir = failed_output_dir / safe_album_name
-                        album_failed_dir.mkdir(parents=True, exist_ok=True)
-
-                        for asset in downloaded_assets:
-                            if asset.id in corrupted_ids:
-                                asset_idx = downloaded_assets.index(asset)
-                                local_moved_path = None
-                                original_abs_path = None
-                                if asset_idx < len(updated_paths):
-                                    # Get absolute path of original file before moving
-                                    original_abs_path = str(
-                                        Path(updated_paths[asset_idx]).absolute()
-                                    )
-                                    path_to_remove = Path(updated_paths[asset_idx])
-                                    try:
-                                        dest_path = album_failed_dir / path_to_remove.name
-                                        shutil.move(str(path_to_remove), str(dest_path))
-                                        local_moved_path = str(dest_path.absolute())
-                                        # Replace spaces with non-breaking spaces to avoid
-                                        # terminal wrapping
-                                        nb_path = local_moved_path.replace(" ", "\u00a0")
-                                        console.print(
-                                            f"  [yellow]→ Moved corrupted file to: "
-                                            f"{nb_path}[/yellow]"
-                                        )
-                                    except Exception as e:
-                                        logger.warning(
-                                            f"Failed to move corrupted file {path_to_remove}: {e}"
-                                        )
-                                        local_moved_path = None
-
-                                album_state.add_permanently_failed_asset(
-                                    asset_id=asset.id,
-                                    original_file_name=asset.original_file_name,
-                                    checksum=asset.checksum,
-                                    failure_reason=(
-                                        "Corrupted file: EXIF injection failed during retry"
-                                    ),
-                                    local_path=local_moved_path,
-                                )
-
-                                # Remove from successful paths using original absolute path
-                                if original_abs_path:
-                                    successful_paths = [
-                                        p
-                                        for p in successful_paths
-                                        if p != original_abs_path  # type: ignore[comparison-overlap]
-                                    ]
-                        console.print(
-                            f"  [red]✗ {len(corrupted_ids)} corrupted file(s) excluded[/red]"
-                        )
-
-                    # Recompute checksums for modified files and update overrides
-                    if modified_ids:
-                        for asset, file_path in zip(downloaded_assets, updated_paths):
-                            if asset.id in modified_ids:
-                                new_checksum = compute_file_checksum(file_path)
-                                checksum_overrides[asset.id] = new_checksum
-
-                # Upload (skip if no files remain)
-                if not successful_paths:
-                    console.print("  [yellow]No files to upload (all excluded or failed)[/yellow]")
-                else:
-                    console.print(f"  Uploading {len(successful_paths)} file(s)...")
-                    upload_success = uploader.upload_batch(
-                        retry_batch_dir,
-                        album_name=album.album_name if not album.is_virtual_unalbummed else None,
-                    )
-
-                    if upload_success:
-                        console.print("  [green]✓ Retry upload successful[/green]")
-
-                        # Link live photos for retried assets
-                        unlinked_pairs = album_state.get_unlinked_live_photos()
-                        if unlinked_pairs:
-                            linked_ids, _ = uploader.link_ready_live_photos(unlinked_pairs)
-                            for image_id in linked_ids:
-                                album_state.mark_live_photo_linked(image_id)
-                            if linked_ids:
-                                console.print(
-                                    f"  [green]✓ Linked {len(linked_ids)} "
-                                    f"live photo pair(s)[/green]"
-                                )
-                    else:
-                        console.print("  [red]✗ Retry upload failed[/red]")
-
-                # Re-verify after retry
-                retry_assets = [a for a in missing_assets if a.id not in failed_ids]
-                newly_verified, still_missing = uploader.verify_assets_exist(
-                    retry_assets, checksum_overrides=checksum_overrides
-                )
-
-                for asset_id in newly_verified:
-                    album_state.add_verified_asset(asset_id)
+            for batch_start in range(0, len(missing_assets), batch_size):
+                batch_assets = missing_assets[batch_start : batch_start + batch_size]
+                batch_num = batch_start // batch_size + 1
+                total_batches = (len(missing_assets) + batch_size - 1) // batch_size
 
                 console.print(
-                    f"  Verification: {len(newly_verified)} now verified, "
-                    f"{len(still_missing)} still missing"
+                    f"  Batch {batch_num}/{total_batches}: Processing {len(batch_assets)} assets..."
                 )
 
-            except Exception as e:
-                logger.error(f"Retry attempt {attempt} failed: {e}")
-                console.print(f"  [red]✗ Retry failed: {e}[/red]")
+                retry_batch_dir = config.temp_dir / f"retry_{album.id}_{attempt}_{batch_num}"
 
-            finally:
-                downloader.cleanup_batch(retry_batch_dir)
+                try:
+                    # Download batch
+                    successful_paths, failed_ids = await downloader.download_batch(
+                        batch_assets, retry_batch_dir
+                    )
 
-            state_manager.save(migration_state)
+                    if not successful_paths:
+                        console.print("    [red]All downloads failed[/red]")
+                        # Track download failures
+                        for asset_id in failed_ids:
+                            asset = assets_by_id.get(asset_id)
+                            if asset:
+                                album_state.add_permanently_failed_asset(
+                                    asset_id=asset_id,
+                                    original_file_name=asset.original_file_name,
+                                    checksum=asset.checksum,
+                                    failure_reason=f"Download failed on retry {attempt}",
+                                )
+                        continue
+
+                    # EXIF injection (only for non-live-photo assets, but we handle all here)
+                    if exif_injector:
+                        downloaded_assets = [a for a in batch_assets if a.id not in failed_ids]
+                        exif_metrics, modified_ids, updated_paths, corrupted_ids = (
+                            exif_injector.inject_dates_for_batch(
+                                downloaded_assets, successful_paths
+                            )
+                        )
+                        successful_paths = [str(Path(p).absolute()) for p in updated_paths]  # type: ignore[misc]
+
+                        if exif_metrics.injected > 0:
+                            console.print(
+                                f"    Injected EXIF dates for {exif_metrics.injected} asset(s)"
+                            )
+
+                        # Handle corrupted files
+                        if corrupted_ids:
+                            safe_album_name = "".join(
+                                c if c.isalnum() or c in "._-" else "_" for c in album.album_name
+                            ).strip()
+                            album_failed_dir = failed_output_dir / safe_album_name
+                            album_failed_dir.mkdir(parents=True, exist_ok=True)
+
+                            for asset in downloaded_assets:
+                                if asset.id in corrupted_ids:
+                                    asset_idx = downloaded_assets.index(asset)
+                                    local_moved_path = None
+                                    original_abs_path = None
+                                    if asset_idx < len(updated_paths):
+                                        original_abs_path = str(
+                                            Path(updated_paths[asset_idx]).absolute()
+                                        )
+                                        path_to_remove = Path(updated_paths[asset_idx])
+                                        try:
+                                            dest_path = album_failed_dir / path_to_remove.name
+                                            shutil.move(str(path_to_remove), str(dest_path))
+                                            local_moved_path = str(dest_path.absolute())
+                                        except Exception as e:
+                                            logger.warning(
+                                                f"Failed to move corrupted: {path_to_remove}: {e}"
+                                            )
+
+                                    album_state.add_permanently_failed_asset(
+                                        asset_id=asset.id,
+                                        original_file_name=asset.original_file_name,
+                                        checksum=asset.checksum,
+                                        failure_reason=(
+                                            "Corrupted file: EXIF injection failed during retry"
+                                        ),
+                                        local_path=local_moved_path,
+                                    )
+
+                                    if original_abs_path:
+                                        successful_paths = [
+                                            p
+                                            for p in successful_paths
+                                            if p != original_abs_path  # type: ignore[comparison-overlap]
+                                        ]
+
+                            console.print(
+                                f"    [red]✗ {len(corrupted_ids)} corrupted file(s) excluded[/red]"
+                            )
+
+                        # Persist checksum overrides for modified files
+                        # Exclude corrupted files (they've been moved to failed dir)
+                        if modified_ids:
+                            for asset, file_path in zip(downloaded_assets, updated_paths):
+                                if asset.id in modified_ids and asset.id not in corrupted_ids:
+                                    # Check if file exists (may have been renamed/moved)
+                                    if not Path(file_path).exists():
+                                        logger.warning(
+                                            f"Skipping checksum for {asset.original_file_name}: "
+                                            f"file not found at {file_path}"
+                                        )
+                                        continue
+                                    new_checksum = compute_file_checksum(file_path)
+                                    effective_overrides[asset.id] = new_checksum
+                                    album_state.set_checksum_override(asset.id, new_checksum)
+
+                    # Upload batch
+                    if not successful_paths:
+                        console.print("    [yellow]No files to upload[/yellow]")
+                    else:
+                        upload_success = uploader.upload_batch(
+                            retry_batch_dir,
+                            album_name=album.album_name
+                            if not album.is_virtual_unalbummed
+                            else None,
+                        )
+
+                        if upload_success:
+                            console.print(
+                                f"    [green]✓ Uploaded {len(successful_paths)} files[/green]"
+                            )
+
+                            # Link live photos
+                            unlinked_pairs = album_state.get_unlinked_live_photos()
+                            if unlinked_pairs:
+                                linked_ids, _ = uploader.link_ready_live_photos(unlinked_pairs)
+                                for image_id in linked_ids:
+                                    album_state.mark_live_photo_linked(image_id)
+                                if linked_ids:
+                                    console.print(
+                                        f"    [green]✓ Linked {len(linked_ids)} live pairs[/green]"
+                                    )
+                        else:
+                            console.print("    [red]✗ Upload failed[/red]")
+
+                    # Verify this batch
+                    retry_assets = [a for a in batch_assets if a.id not in failed_ids]
+                    newly_verified, still_missing = uploader.verify_assets_exist(
+                        retry_assets, checksum_overrides=effective_overrides
+                    )
+
+                    for asset_id in newly_verified:
+                        album_state.add_verified_asset(asset_id)
+
+                    total_retry_verified += len(newly_verified)
+                    total_retry_still_missing += len(still_missing)
+
+                except Exception as e:
+                    logger.error(f"Retry batch {batch_num} failed: {e}")
+                    console.print(f"    [red]✗ Batch failed: {e}[/red]")
+
+                finally:
+                    downloader.cleanup_batch(retry_batch_dir)
+
+                state_manager.save(migration_state)
+
+            console.print(
+                f"  Attempt {attempt} complete: {total_retry_verified} verified, "
+                f"{total_retry_still_missing} still missing"
+            )
 
     # Handle permanently failed assets
     permanently_missing = [

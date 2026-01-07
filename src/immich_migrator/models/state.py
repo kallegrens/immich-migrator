@@ -54,6 +54,9 @@ class AlbumState(BaseModel):
     verified_asset_ids: list[str] = Field(default_factory=list)
     missing_asset_ids: list[str] = Field(default_factory=list)
     permanently_failed_assets: list[FailedAsset] = Field(default_factory=list)
+    # Checksum overrides for EXIF-injected assets (asset_id -> new_checksum)
+    # These are used during verification to check for the modified checksum on destination
+    checksum_overrides: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("migrated_count")
     @classmethod
@@ -135,6 +138,7 @@ class AlbumState(BaseModel):
         self.verified_asset_ids = []
         self.missing_asset_ids = []
         self.permanently_failed_assets = []
+        self.checksum_overrides = {}
         self.last_updated = datetime.now()
 
     def add_live_photo_pair(
@@ -252,11 +256,39 @@ class AlbumState(BaseModel):
         self.last_updated = datetime.now()
 
     def clear_verification_state(self) -> None:
-        """Clear verification tracking for re-verification."""
+        """Clear verification tracking for re-verification.
+
+        Note: Preserves checksum_overrides since those reflect actual file changes.
+        """
         self.verified_asset_ids = []
         self.missing_asset_ids = []
         self.permanently_failed_assets = []
         self.last_updated = datetime.now()
+
+    def set_checksum_override(self, asset_id: str, new_checksum: str) -> None:
+        """Record an overridden checksum for an EXIF-modified asset.
+
+        Args:
+            asset_id: ID of the asset that was modified
+            new_checksum: The new SHA1 checksum after EXIF injection
+        """
+        self.checksum_overrides[asset_id] = new_checksum
+        self.last_updated = datetime.now()
+
+    def get_checksum_for_asset(self, asset_id: str, original_checksum: str) -> str:
+        """Get the checksum to use for verification.
+
+        Returns the overridden checksum if the asset was EXIF-injected,
+        otherwise returns the original checksum.
+
+        Args:
+            asset_id: ID of the asset
+            original_checksum: The original checksum from source server
+
+        Returns:
+            The checksum to look for on the destination server
+        """
+        return self.checksum_overrides.get(asset_id, original_checksum)
 
 
 class MigrationState(BaseModel):

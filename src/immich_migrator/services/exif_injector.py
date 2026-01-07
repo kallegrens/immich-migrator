@@ -630,6 +630,10 @@ class ExifInjector:
 
                     if not found:
                         logger.warning(f"Could not find renamed file for {original_name}")
+                        # Remove from modified since we can't find the file for checksum
+                        modified_asset_ids.discard(asset.id)
+                        metrics.injected -= 1
+                        metrics.failed += 1
 
                 updated_paths.append(current_path)
 
